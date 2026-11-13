@@ -6,6 +6,8 @@
 // No timers, no losing, no reading needed. Works offline (one HTML file).
 // ===================================================================
 import * as THREE from 'three';
+import { SAFE_GRAPHICS } from './graphics.js';
+import { PORTRAITS } from './portraits.js';
 
 import { Sound, NOTES } from './audio.js';
 import { CREATURES, makeCreature, makeFluff, toy, starGeometry } from './creatures.js';
@@ -31,6 +33,11 @@ import { SCULPT_STATS } from './sculpt.js';
 import { FUR } from './fur.js';
 
 const $ = id => document.getElementById(id);
+// Pre-rendered pictures are available on the first visit, including devices
+// whose canvas readback returned blank pictures in the old portrait cache.
+document.querySelectorAll('[data-c]').forEach(el => {
+  const img = el.querySelector('img'); if (img && PORTRAITS[el.dataset.c]) img.src = PORTRAITS[el.dataset.c];
+});
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, k) => a + (b - a) * k;
 const SAVE_KEY = 'dawsons-discovery-world-3d-v1';
@@ -53,7 +60,7 @@ function createRenderer(canvas) {
   ];
   // A separate test URL can skip the original request if it crashes a driver
   // instead of returning a normal context-creation error.
-  const attempts = new URLSearchParams(location.search).get('graphics') === 'compatible'
+  const attempts = SAFE_GRAPHICS || new URLSearchParams(location.search).get('graphics') === 'compatible'
     ? compatible : [{ antialias: true, powerPreference: 'high-performance' }, ...compatible];
   const failures = [];
   let detail = '';
@@ -826,31 +833,17 @@ function restore(d) {
 function setSound(on) { Sound.on = on; $('soundBtn').classList.toggle('muted', !on); }
 $('soundBtn').addEventListener('pointerdown', e => { e.preventDefault(); Sound.unlocked = true; setSound(!Sound.on); if (Sound.on) Sound.click(); save(); });
 
-// ---------------- creature portraits (rendered once, in 3D) ----------------
-function renderPortraits() {
-  // drawn with the main renderer into a corner of the canvas, then copied (no second WebGL context)
-  const s = new THREE.Scene(); s.environment = scene.environment; s.environmentIntensity = .7; s.background = new THREE.Color('#fff6ee');
-  s.add(new THREE.HemisphereLight('#ffffff', '#c9a6ff', 1.4)); const l = new THREE.DirectionalLight('#fff', 2); l.position.set(2, 4, 5); s.add(l);
-  const cam = new THREE.PerspectiveCamera(30, 1, .1, 50); cam.position.set(0, 1.3, 4.6); cam.lookAt(0, .95, 0);
-  const pr = renderer.getPixelRatio(), css = 128 / pr, px = Math.round(css * pr), out = {};
-  const c2 = document.createElement('canvas'); c2.width = c2.height = 128; const g2 = c2.getContext('2d');
-  renderer.setScissorTest(true); renderer.setViewport(0, 0, css, css); renderer.setScissor(0, 0, css, css);
-  const was = renderer.shadowMap.enabled; renderer.shadowMap.enabled = false;
-  for (const k of Object.keys(CREATURES)) {
-    const c = makeCreature(k); s.add(c.root); c.update(.016, { grounded: true, facing: 1, vx: 0, vy: 0 }); c.root.rotation.y = .35;
-    renderer.render(s, cam); g2.clearRect(0, 0, 128, 128); g2.drawImage(canvas, 0, canvas.height - px, px, px, 0, 0, 128, 128); out[k] = c2.toDataURL(); s.remove(c.root);
-  }
-  renderer.shadowMap.enabled = was; renderer.setScissorTest(false); renderer.setViewport(0, 0, canvas.clientWidth || innerWidth, canvas.clientHeight || innerHeight);
-  return out;
-}
+// ---------------- character selection ----------------
 document.querySelectorAll('.creatureChoice').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); Sound.unlocked = true; setCreature(b.dataset.c); Sound.giggle(); save(); }));
 document.querySelectorAll('.introPick').forEach(b => b.addEventListener('click', () => { document.querySelectorAll('.introPick').forEach(x => x.classList.toggle('picked', x === b)); setCreature(b.dataset.c); }));
 
 // ---------------- resize + adaptive quality ----------------
-let quality = TEST ? .4 : MOBILE ? .75 : 1, slow = 0, ema = 1 / 60;
-if (TEST) renderer.shadowMap.enabled = false;
+let quality = TEST || SAFE_GRAPHICS ? .4 : MOBILE ? .75 : 1, slow = 0, ema = 1 / 60;
+if (TEST || SAFE_GRAPHICS) renderer.shadowMap.enabled = false;
 // soft "ambient occlusion" shadows (post.js); off in the light test mode and with ?nopost
-const post = makePost(renderer, scene, camera, { mobile: MOBILE }); post.enabled = !TEST && !/[?&]nopost/.test(location.search);
+const post = makePost(renderer, scene, camera, {
+  mobile: MOBILE, disabled: TEST || SAFE_GRAPHICS || /[?&]nopost/.test(location.search),
+});
 // (build 34b) the picture is sized from the canvas's REAL size on screen. On iPhone (especially the Home Screen app),
 // innerWidth/innerHeight can still hold the old, upright size when the phone turns, which drew a tall picture and
 // stretched it sideways ("squished"). A cheap check every frame also catches any size change that sent no event.
@@ -866,14 +859,6 @@ function checkSize() { const w = canvas.clientWidth, h = canvas.clientHeight; if
 addEventListener('resize', resize); addEventListener('orientationchange', () => { resize(); setTimeout(resize, 300); setTimeout(resize, 1000); });
 if (window.visualViewport) visualViewport.addEventListener('resize', resize);
 resize();
-// (build 23) the title pictures never change: they are drawn once, saved on the device, and shown instantly on
-// every later start. On the very first start they are drawn just after the game becomes playable.
-const PORTRAIT_KEY = 'ddw3-portraits-b23';
-let portraits = {};
-try { portraits = JSON.parse(localStorage.getItem(PORTRAIT_KEY) || '{}'); } catch (e) { portraits = {}; }
-const applyPortraits = () => document.querySelectorAll('[data-c]').forEach(el => { const img = el.querySelector('img'); if (img && portraits[el.dataset.c]) img.src = portraits[el.dataset.c]; });
-const needPortraits = Object.keys(CREATURES).some(k => !portraits[k]);
-if (!needPortraits) applyPortraits();
 // (build 26) AUTOMATIC QUALITY, a ladder of steps. None of them recompiles shaders (no freeze when it changes):
 //   0 full  ·  1 lighter shadows (1024 px, drawn every 3rd frame)  ·  2 lite effects (no 4x AA buffer, no glow)
 //   3 resolution -12%  ·  4 resolution -24%  ·  5 smallest shadows (512 px, every 4th frame), resolution -30%
@@ -890,7 +875,7 @@ function applyGfx(L, why) {
   post.lite = L >= 2; quality = QMAX - (L >= 5 ? .3 : L >= 4 ? .24 : L >= 3 ? .12 : 0); resize();
   if (why) { gfx.changes.push(`${prev}→${L} (${why})`); if (gfx.changes.length > 12) gfx.changes.shift(); try { localStorage.setItem(GFX_KEY, JSON.stringify({ level: L })); } catch (e) { } }
 }
-if (!TEST && !/[?&]hq/.test(location.search)) { try { const g = JSON.parse(localStorage.getItem(GFX_KEY) || 'null'); if (g && Number.isFinite(g.level)) applyGfx(g.level); else if (MOBILE) applyGfx(1); } catch (e) { } } // (build 28: a phone starts on lighter shadows, so lag never comes first)
+if (!TEST && !SAFE_GRAPHICS && !/[?&]hq/.test(location.search)) { try { const g = JSON.parse(localStorage.getItem(GFX_KEY) || 'null'); if (g && Number.isFinite(g.level)) applyGfx(g.level); else if (MOBILE) applyGfx(1); } catch (e) { } } // (build 28: a phone starts on lighter shadows, so lag never comes first)
 G.applyGfx = applyGfx; G.resetGfx = () => { applyGfx(MOBILE ? 1 : 0); gfx.changes.push('reset'); gfx.failed = -1; };
 function adapt(dt) {
   ema += (dt - ema) * .05; gfx.var += ((dt - ema) * (dt - ema) - gfx.var) * .05; gfx.since += dt;
@@ -945,7 +930,7 @@ function frame() {
   renderer.shadowMap.needsUpdate = (++shadowTick % shadowEvery) === 0; // (build 24: the sun never moves and most shadow casters stand still: redraw the shadow map every other frame)
   renderer.info.reset(); // (build 26: count every pass of the frame, not just the last one)
   if (post.enabled) post.render(); else renderer.render(scene, camera);
-  if (!TEST && !/[?&]hq/.test(location.search)) { gfx.work += (performance.now() - frameT0 - gfx.work) * .05; adapt(raw); }
+  if (!TEST && !SAFE_GRAPHICS && !/[?&]hq/.test(location.search)) { gfx.work += (performance.now() - frameT0 - gfx.work) * .05; adapt(raw); }
   requestAnimationFrame(frame);
 }
 
@@ -1043,7 +1028,7 @@ function sliceScenery() {
 }
 G.unslice = o => { if (o && o.parent && o.parent.userData.slice) scene.attach(o); }; // (something that starts to follow you leaves its slice)
 function updateSlices() { for (const g of slices) { const near = Math.abs(g.userData.x - camT.x) < 52; if (near && !g.parent) scene.add(g); else if (!near && g.parent) scene.remove(g); } }
-const begin = () => { if (begun) return; begun = true; G.startupMs = Math.round(performance.now()); try { chunkInstanced(); sliceScenery(); updateSlices(); } catch (e) { console.log('slices skipped', e); } renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true; requestAnimationFrame(frame); if (needPortraits) setTimeout(() => { try { portraits = renderPortraits(); localStorage.setItem(PORTRAIT_KEY, JSON.stringify(portraits)); } catch (e) { } applyPortraits(); }, 60); setTimeout(() => $('loading').classList.add('done'), 250); };
+const begin = () => { if (begun) return; begun = true; G.startupMs = Math.round(performance.now()); try { chunkInstanced(); sliceScenery(); updateSlices(); } catch (e) { console.log('slices skipped', e); } renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true; requestAnimationFrame(frame); setTimeout(() => $('loading').classList.add('done'), 250); };
 // (build 24) shaders: compile everything in the scene before play starts (the light count is now fixed, so these stay
 // valid), then compile the model files' materials as soon as they arrive (in the background where the phone supports
 // parallel compiling), so nothing compiles the first time it comes into view.

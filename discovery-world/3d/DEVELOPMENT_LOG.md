@@ -4,6 +4,29 @@ Completed changes and how each was tested, newest first. Each checkpoint says wh
 browser vs. a real iPhone). The routine and rules are in `CLAUDE.md`; unfinished work is in `NEXT_TASKS.md`; measurements
 are in `PERFORMANCE_LOG.md`.
 
+## Checkpoint: build 36 Android profile and bundled portraits
+- **Physical Pixel report:** after a Chrome restart, the light
+  `?test&graphics=compatible` build opens and gameplay works, but the character
+  selection pictures are missing. The previous full-effects build reported
+  `Web page caused context loss and was blocked`.
+- **Rendering profile:** Android now selects the working lighter configuration
+  independently of automated test mode: procedural scenery, no shell fur,
+  no shadow map, no post-processing and lower resolution. Speech, learning
+  activities, saves and all gameplay stay enabled. `?graphics=safe` forces this
+  profile on any platform; `?graphics=full` restores the full rendering path.
+- **Portrait fix:** bundle three PNGs rendered from the real character models,
+  remove runtime canvas readback and ignore the old portrait cache. Pictures are
+  present on the first visit even if the old cache contains blank PNGs. The
+  original pre-change build is preserved in `../backups/3D_build36_index.html`.
+- **Verified (desktop, software rendering):** `test:android` passes on an Android
+  user agent with no test flag, explicit safe mode and full-profile opt-in.
+  Checks cover nonblank image pixels, the old blank-cache case, saved creature,
+  crown, wand, pets, discoveries and star bits, speech delivery to a mocked browser
+  speech API, character selection, actual touch walking and portrait/landscape
+  resizing. This does not establish audible speech or GPU behavior on the Pixel.
+- **Pending:** physical verification of the new regular build, exact isolation
+  of the original GPU reset, and the full gameplay smoke suite.
+
 ## Checkpoint: build 35 Android test branch
 - **Reported:** Pixel 10 Pro / Chrome cannot create the game's WebGL context;
   the standalone WebGL 2 cube works on the same phone.

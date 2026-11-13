@@ -4,6 +4,22 @@ Rule: the game must never get slower. Measure before and after every change on i
 **Desktop numbers come from a software-rendered browser and are NOT iPhone numbers.** Only the in-game report from the
 real iPhone (⚙️ → Performance Test → Copy Test Results) counts as an iPhone measurement.
 
+## Build 36 Android rendering profile
+
+- Physical Pixel 10 Pro: the previous `?test&graphics=compatible` build opens
+  after restarting Chrome and gameplay works; the portrait boxes are blank.
+  The full-effects build reset graphics and was blocked by Chrome. No physical
+  frame-rate or loading measurement was supplied.
+- Desktop Chromium, software rendering, 844×390 touch viewport: `test:android`
+  completed startup plus portrait/save/speech/selection/walking/rotation checks
+  in 35.2 s for automatic Android mode, 31.7 s for explicit safe mode, and 55.3 s
+  for the full-profile opt-in. These are end-to-end test durations, not frame-rate
+  benchmarks or comparable physical-device performance results.
+- Safe mode has no shell-fur layers, shadow-map drawing, or post-processing
+  buffers. It does not adapt back into heavier graphics during play. Bundled
+  character PNGs add about 93 KB before data-URL encoding and remove the three
+  runtime portrait renders, canvas readbacks and localStorage writes.
+
 ## Build 35 test branch: focused startup measurements
 
 Desktop Chromium with software rendering, 844×390 touch viewport. Single runs

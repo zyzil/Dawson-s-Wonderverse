@@ -17,7 +17,9 @@ import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 
 const vert = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }';
 
-export function makePost(renderer, scene, camera, { mobile }) {
+export function makePost(renderer, scene, camera, { mobile, disabled = false }) {
+  if (disabled) return { enabled: false, ao: false, lite: true, target: null,
+    setSize() {}, render() { renderer.render(scene, camera); } };
   const depth = new THREE.DepthTexture(1, 1); depth.type = THREE.UnsignedIntType;
   const rtScene = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4, depthTexture: depth, depthBuffer: true });
   const rtAO = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });

@@ -6,7 +6,8 @@
   "scripts": {
     "build": "node build.mjs",
     "test": "node tests/smoke3d.cjs",
-    "test:renderer": "node tests/renderer-startup.cjs"
+    "test:renderer": "node tests/renderer-startup.cjs",
+    "test:android": "node tests/android-profile.cjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

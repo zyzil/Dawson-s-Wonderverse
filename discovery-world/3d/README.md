@@ -4,6 +4,15 @@ This is the full rebuild of Dawson's Discovery World in real 3D. It is a **separ
 
 Play: open `index.html`. It is one self-contained file and works offline. Once merged, it is also on GitHub Pages at `…/discovery-world/3d/`.
 
+## Build 36 test branch: Android rendering and character pictures
+
+Android now starts with the lighter rendering path that opened on the physical
+Pixel 10 Pro, while keeping normal speech, saves and game features. Character
+selection uses bundled portraits of the actual 3D characters instead of drawing
+and caching them on the phone. `?graphics=safe` forces this profile on any device;
+`?graphics=full` opts into the original full effects. See
+[Android testing and publishing](ANDROID_TESTING.md).
+
 ## Build 35 test branch: Android graphics startup
 
 The `android-webgl-fallback` branch retries simpler graphics settings when WebGL 2
