@@ -21,6 +21,11 @@
 <pre id="summary" hidden></pre>
 <noscript>Enable JavaScript to use the graphics checks.</noscript>
 </main>
+<script>
+// Opening this page also upgrades older offline helpers that treated every
+// navigation as the game page. The new helper caches these documents separately.
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
+</script>
 <script type="module">
 import { GRAPHICS_TRIALS } from './src/graphics.js?build=37';
 const KEY = 'ddw3-graphics-checks-v1', PENDING = 'ddw3-graphics-check-pending';

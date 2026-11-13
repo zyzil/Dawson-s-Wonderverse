@@ -25,7 +25,8 @@ are in `PERFORMANCE_LOG.md`.
   portraits and no uncaught JavaScript errors. The profile matrix, test-page
   navigation/results/export, save isolation and explicit rejection of canvas
   requests pass. The offline navigation test preserves the game, offline checks
-  and unrelated application caches.
+  and unrelated application caches, including upgrade from the legacy helper
+  when the checks page is the first page opened after deployment.
 - Physical feature-by-feature results and combination testing are pending.
 
 ## Checkpoint: build 36 Android profile and bundled portraits
