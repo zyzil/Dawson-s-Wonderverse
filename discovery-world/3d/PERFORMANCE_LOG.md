@@ -14,6 +14,11 @@ of the light `?test` build, timed through startup and tapping Play:
 | Saved original build 34c | 47.3 s |
 | Updated build, original graphics request | 34.0 s |
 | Updated build, `?graphics=compatible` | 31.8 s |
+| Updated build, simulated antialiasing rejection | 29.5 s |
+
+An additional compatible-mode startup with normal post-processing effects enabled
+(without `?test`) passed in 45.6 s. All five startup scenarios and seven renderer
+cases passed.
 
 These measurements show successful startup, not a reliable speed comparison:
 shader-cache and software-rendering variability affect the timings. No claim of

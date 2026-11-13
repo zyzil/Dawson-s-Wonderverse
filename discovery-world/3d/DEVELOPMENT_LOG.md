@@ -18,6 +18,10 @@ are in `PERFORMANCE_LOG.md`.
   diagnostic errors and listener cleanup. The original build, updated default
   build and explicit compatible build start and accept the Play button without
   uncaught JavaScript errors in light test mode.
+- **Additional startup checks passed (desktop, software rendering):** the full
+  game starts after simulated antialiasing rejection, and the explicit compatible
+  build starts with the normal post-processing effects enabled. All seven
+  renderer cases and five game-startup scenarios in `test:renderer` passed.
 - **Pending:** physical Pixel verification and the full gameplay smoke suite.
 
 ## Checkpoint: build 34c (user request)
