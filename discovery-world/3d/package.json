@@ -11,7 +11,8 @@
     "test:graphics": "node tests/graphics-trials.cjs",
     "test:graphics-offline": "node tests/graphics-offline.cjs",
     "test:shadow-pixels": "node tests/shadow-pixels.cjs",
-    "test:shadow-check": "node tests/shadow-check.cjs"
+    "test:shadow-check": "node tests/shadow-check.cjs",
+    "test:gpu-work": "node tests/gpu-work.cjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

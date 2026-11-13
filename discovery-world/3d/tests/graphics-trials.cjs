@@ -45,6 +45,7 @@ async function main() {
         androidDefault: getGraphicsProfile('', ua),
         shadowFree: getGraphicsProfile('?graphics=full-no-shadows&restore=shadows', ua),
         basicShadows: getGraphicsProfile('?graphics=full-basic-shadows', ua),
+        originalWarmup: getGraphicsProfile('?graphics=full-basic-shadows&warmup=original', ua),
         iphone: getGraphicsProfile('', 'iPhone'), unknown: getGraphicsProfile('?graphics=safe&restore=bogus', ua),
         combined: getGraphicsProfile('?graphics=safe&restore=fur,shadows,fur', ua) };
     }, { keys: KEYS, ua: PIXEL });
@@ -59,6 +60,9 @@ async function main() {
     assert.deepEqual(profiles.unknown.restored, []);
     assert.deepEqual(profiles.combined.restored, ['shadows', 'fur']);
     assert.equal(profiles.basicShadows.shadowType, 'basic');
+    assert.equal(profiles.basicShadows.localShadowWarmup, true);
+    assert.equal(profiles.originalWarmup.localShadowWarmup, false);
+    assert.equal(profiles.androidDefault.localShadowWarmup, false);
     assert.equal(profiles.full.shadowType, 'pcf');
     console.log('PASS independent profile matrix, safe defaults, full defaults and valid feature filtering');
     await p.close();
@@ -133,6 +137,21 @@ async function main() {
       const ctx = await browser.newContext({ userAgent: PIXEL, viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
       const page = await ctx.newPage(), errors = [];
       page.on('pageerror', e => errors.push(e.message));
+      await page.addInitScript(() => {
+        // Observe actual shadow-camera updates, not just app bookkeeping.
+        Object.defineProperty(window, '__DDW3', { configurable: true, set(D) {
+          Object.defineProperty(window, '__DDW3', { value: D, writable: true, configurable: true });
+          window.__shadowViews = [];
+          D.G.scene.traverse(o => {
+            if (!o.isLight || !o.castShadow || !o.shadow) return;
+            const update = o.shadow.updateMatrices.bind(o.shadow);
+            o.shadow.updateMatrices = (...args) => {
+              __shadowViews.push(o.shadow.camera.right - o.shadow.camera.left);
+              return update(...args);
+            };
+          });
+        } });
+      });
       const query = new URLSearchParams({ graphics: 'safe', trial: '1' });
       if (key === 'android-default') { query.delete('graphics'); query.delete('trial'); }
       else if (['full-no-shadows', 'full-basic-shadows'].includes(key)) query.set('graphics', key);
@@ -151,6 +170,7 @@ async function main() {
           oops: !document.getElementById('oops').hidden,
           pictures: [...document.querySelectorAll('.introPick img')].every(i => i.complete && i.naturalWidth === 256) };
       });
+      const startupMs = Date.now() - start;
       const shadowFree = ['full-no-shadows', 'android-default'].includes(key);
       for (const feature of KEYS) assert.equal(actual[feature], key === 'full-basic-shadows' || (shadowFree ? feature !== 'shadows' : feature === key), key + ': unexpected ' + feature);
       assert.equal(actual.pixelRatio, key === 'resolution' || shadowFree || key === 'full-basic-shadows' ? 1.5 : .8);
@@ -181,10 +201,29 @@ async function main() {
         assert.equal(basic.mode, true); assert(basic.maps.length > 0);
         assert(basic.maps.every(m => m.width === 1536 && m.height === 1536 && m.compare === null && m.min === basic.nearest), 'change sampling method, not resolution');
         assert(basic.types.length > 0 && basic.types.every(t => t === basic.sampler), 'compiled shaders use plain depth samplers, not hardware comparison samplers');
-        await page.screenshot({ path: path.join(ROOT, 'screenshots/android-basic-shadows.jpg'), type: 'jpeg' });
+        if (actual.profile.localShadowWarmup) {
+          const warm = await page.evaluate(() => ({ metrics: __DDW3.G.shadowWarmup, views: __shadowViews, error: __DDW3.G.warmErr }));
+          assert.equal(warm.error, undefined);
+          assert.equal(warm.metrics.completedBatches, 16, 'all 16 submitted batches complete before play');
+          assert.equal(warm.metrics.localPasses, 11);
+          assert.equal(warm.metrics.wideShadowPasses, 0);
+          assert(warm.views.length >= 11 && warm.views.every(w => w <= 26), 'actual depth passes never widen to whole-world bounds');
+          console.log('PASS bounded shadow warmup:', JSON.stringify(warm));
+        }
+        console.log('PASS full-detail Basic startup:', startupMs);
+        await page.screenshot({ path: path.join(ROOT, 'screenshots/android-basic-shadows.jpg'), type: 'jpeg', timeout: 120000 });
         console.log('PASS real shadow-map allocation and compiled sampler types:', JSON.stringify(basic));
+        if (actual.profile.localShadowWarmup) {
+          await page.evaluate(() => __DDW3.renderer.getContext().getExtension('WEBGL_lose_context').loseContext());
+          await page.locator('#copyGraphicsReport').waitFor();
+          await page.locator('#copyGraphicsReport').click();
+          const report = JSON.parse(await page.locator('#graphicsReport').innerText());
+          assert.equal(report.build, 42); assert.equal(report.contextLost, true);
+          assert.equal(report.profile.shadowType, 'basic'); assert(report.lastSubmittedStage);
+          console.log('PASS game context-loss report');
+        }
       }
-      console.log('PASS real game single feature:', key, JSON.stringify({ ms: Date.now() - start, ...actual }));
+      console.log('PASS real game single feature:', key, JSON.stringify({ ms: startupMs, ...actual }));
       await ctx.close();
     }
   } finally {

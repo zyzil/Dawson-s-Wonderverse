@@ -12,12 +12,16 @@
 <body><main>
 <h1>Restore graphics one at a time</h1>
 <p>Each check starts with the working lighter settings and adds <b>one feature</b>. Play briefly, then use “Graphics checks” at the top of the game to return and record the result.</p>
-<aside><b>Next: a small shadow check</b>
-<p>The Pixel 10 Pro XL reset with both the original filtered shadows and the full-detail basic-shadow trial. Both methods share a depth-texture path. This small scene removes the game's scenery, effects and whole-world startup rendering to narrow down the failure.</p>
+<aside><b>Next: Basic shadows with local startup (build 42)</b>
+<p>The Pixel 10 Pro XL draws the small scene with Basic shadows at both 512 and the game's 1536 map size. Filtered PCF at 1536 resets it. The original full Basic game also reset, so this new game trial replaces the wide startup shadow passes with local views, waiting for the GPU between batches. It keeps the game-size shadow map and full detail.</p>
+<p><a id="localShadows" class="primary" href="./?graphics=full-basic-shadows&amp;trial=1&amp;build=42">Try the new Basic shadow game</a></p>
+<label>Result: <select id="localShadowResult" aria-label="Basic shadows with local startup result"></select></label>
+<p>If it resets, use “Copy graphics report” on the error screen.</p></aside>
+<details><summary>Small scene: Basic works; filtered game-size map resets</summary>
 <p><a class="primary" href="shadow-check.html?build=41">Open the small shadow check</a></p>
-<p>Look for a rotating pink block and a dark shadow, then use “Copy report”. The report includes the browser/GPU details and whether the GPU completed its first shadow draw.</p></aside>
+<p>Reported phone: Pixel 10 Pro XL, PowerVR D-Series DXT-48-1536, Chrome 157.0.8103.50, Android 17. The precise driver operation causing the filtered reset remains unknown.</p></details>
 <details><summary>Previous basic-shadow game trials (full-detail trial failed)</summary>
-<p><a id="basicShadows" class="primary" href="./?graphics=full-basic-shadows&amp;trial=1&amp;build=40">Try basic shadows with full detail</a></p>
+<p><a id="basicShadows" class="primary" href="./?graphics=full-basic-shadows&amp;warmup=original&amp;trial=1&amp;build=42">Retest Basic shadows with original startup</a></p>
 <label>Result: <select id="basicShadowResult" aria-label="Basic shadows with full detail result"></select></label>
 <p><a href="./?graphics=safe&amp;restore=shadows&amp;shadow=basic&amp;trial=1&amp;build=40">Test basic shadows alone</a></p></details>
 <a id="next" class="primary" href="./?graphics=safe">Start next check</a>
@@ -39,13 +43,13 @@
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
 </script>
 <script type="module">
-import { GRAPHICS_TRIALS } from './src/graphics.js?build=40';
+import { GRAPHICS_TRIALS } from './src/graphics.js?build=42';
 const KEY = 'ddw3-graphics-checks-v1', PENDING = 'ddw3-graphics-check-pending';
 const states = ['Not tested', 'Worked', 'Slow', 'Failed'];
 let results = {}, pending = '';
 try { results = JSON.parse(localStorage.getItem(KEY) || '{}'); pending = sessionStorage.getItem(PENDING) || ''; } catch {}
 if (!results || typeof results !== 'object' || Array.isArray(results)) results = {};
-results = Object.fromEntries([...GRAPHICS_TRIALS.map(t => t.key), 'full-no-shadows', 'full-basic-shadows'].map(key => [key, states.includes(results[key]) ? results[key] : 'Not tested']));
+results = Object.fromEntries([...GRAPHICS_TRIALS.map(t => t.key), 'full-no-shadows', 'full-basic-shadows', 'full-basic-local'].map(key => [key, states.includes(results[key]) ? results[key] : 'Not tested']));
 function url(key) {
   const u = new URL('./', location.href);
   u.search = new URLSearchParams({ graphics: 'safe', restore: key, trial: '1', build: '38' });
@@ -59,6 +63,11 @@ function updateNext() {
 }
 document.getElementById('shadowFree').onclick = () => start('full-no-shadows');
 document.getElementById('basicShadows').onclick = () => start('full-basic-shadows');
+document.getElementById('localShadows').onclick = () => start('full-basic-local');
+const local = document.getElementById('localShadowResult');
+for (const state of states) { const o = document.createElement('option'); o.value = o.textContent = state; local.appendChild(o); }
+local.value = results['full-basic-local'];
+local.onchange = () => { results['full-basic-local'] = local.value; try { localStorage.setItem(KEY, JSON.stringify(results)); } catch {} };
 const basic = document.getElementById('basicShadowResult');
 for (const state of states) { const o = document.createElement('option'); o.value = o.textContent = state; basic.appendChild(o); }
 basic.value = results['full-basic-shadows'];
@@ -67,7 +76,7 @@ const combined = document.getElementById('shadowFreeResult');
 for (const state of states) { const o = document.createElement('option'); o.value = o.textContent = state; combined.appendChild(o); }
 combined.value = results['full-no-shadows'];
 combined.onchange = () => { results['full-no-shadows'] = combined.value; try { localStorage.setItem(KEY, JSON.stringify(results)); } catch {} };
-const last = pending === 'full-basic-shadows' ? { label: 'Basic shadows with full detail' } : pending === 'full-no-shadows' ? { label: 'Full detail without shadow maps' } : GRAPHICS_TRIALS.find(t => t.key === pending);
+const last = pending === 'full-basic-local' ? { label: 'Basic shadows with local startup' } : pending === 'full-basic-shadows' ? { label: 'Basic shadows with original startup' } : pending === 'full-no-shadows' ? { label: 'Full detail without shadow maps' } : GRAPHICS_TRIALS.find(t => t.key === pending);
 if (last) { const p = document.getElementById('last'); p.hidden = false; p.textContent = 'Last check: ' + last.label + '. Record its result on this page.'; }
 for (const [i, t] of GRAPHICS_TRIALS.entries()) {
   const card = document.createElement('section'); card.className = 'check'; card.dataset.feature = t.key;
@@ -88,7 +97,7 @@ for (const [i, t] of GRAPHICS_TRIALS.entries()) {
 }
 updateNext();
 document.getElementById('copy').onclick = async () => {
-  const text = 'Graphics checks — build 41\nReported Pixel results: original filtered shadow-only and full-detail basic-shadow trials failed; full detail without shadows works.\nRecorded basic shadows with full detail: ' + results['full-basic-shadows'] + '\nFull detail without shadow maps: ' + results['full-no-shadows'] + '\n' + GRAPHICS_TRIALS.map(t => t.label + ': ' + results[t.key]).join('\n') + '\nBrowser: ' + navigator.userAgent;
+  const text = 'Graphics checks — build 42\nReported Pixel small-scene results: Basic 512 and 1536 worked; filtered PCF 1536 reset.\nBasic shadows with local startup: ' + results['full-basic-local'] + '\nBasic shadows with original startup: ' + results['full-basic-shadows'] + '\nFull detail without shadow maps: ' + results['full-no-shadows'] + '\n' + GRAPHICS_TRIALS.map(t => t.label + ': ' + results[t.key]).join('\n') + '\nBrowser: ' + navigator.userAgent;
   const pre = document.getElementById('summary'); pre.textContent = text; pre.hidden = false;
   try { await navigator.clipboard.writeText(text); document.getElementById('notice').textContent = 'Copied. Paste the results into the chat.'; }
   catch { document.getElementById('notice').textContent = 'Copy the results shown below.'; }

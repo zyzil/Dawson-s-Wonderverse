@@ -4,6 +4,17 @@ This is the full rebuild of Dawson's Discovery World in real 3D. It is a **separ
 
 Play: open `index.html`. It is one self-contained file and works offline. Once merged, it is also on GitHub Pages at `…/discovery-world/3d/`.
 
+## Build 42: Basic shadows with bounded startup work
+
+The physical Pixel 10 Pro XL draws the small scene with Basic shadow maps at
+512 and 1536; filtered PCF at 1536 resets its graphics context. The original
+full Basic game also failed, so `?graphics=full-basic-shadows` now warms shadows
+in local views, with a nonblocking GPU completion wait between startup batches.
+It keeps the original mobile map resolution and all other graphics features.
+The new full-game trial still needs the phone's confirmation. The normal
+Android game retains the verified shadow-free profile. See
+[graphics checks](graphics-tests.html?build=42).
+
 ## Build 41: isolate the shadow reset
 
 The physical Pixel 10 Pro XL also resets with the basic-shadow game trial.

@@ -1,5 +1,33 @@
 # Pixel 10 Pro test branch
 
+## Current phone evidence and game trial (build 42)
+
+The Pixel 10 Pro XL draws the small scene with Basic shadows at **both 512 and
+1536**. The game-size **filtered PCF** comparison resets. Its report identifies
+ANGLE / Imagination Technologies PowerVR D-Series DXT-48-1536, Chrome
+157.0.8103.50, Android 17.0.0. The shadow draw was submitted but its completion
+fence had not signaled when context loss occurred. A phone capability limit or
+memory shortage has not been established.
+
+The earlier Basic full game also reset, so avoiding PCF is not yet a complete
+fix. Try the revised full-game startup:
+<https://zyzil.github.io/Dawson-s-Wonderverse/discovery-world/3d/?graphics=full-basic-shadows&trial=1&build=42>.
+
+This keeps full detail, the original 1536×1536 mobile map and Basic sampling.
+Startup rehearses shadows in local views and waits asynchronously for each
+batch to finish on the GPU. The wide scenery/material rehearsals still run,
+without stretching the shadow camera across the world. Normal game defaults
+stay on the physically confirmed shadow-free Android profile.
+
+Look for character and scenery shadows, walk around, and try the house. If it
+resets, use **Copy graphics report** on the error screen. The reported stage is
+the last submitted work, not proof of which GPU instruction failed. Force-stop
+Chrome first if a previous reset left graphics blocked.
+
+For the old Basic startup comparison, add `warmup=original`. Local-startup
+results have a separate result field on the checks page. Reports are copied
+manually, and no game saves or results are sent anywhere automatically.
+
 ## Current result and next check (build 41)
 
 The physical Pixel 10 Pro XL reset with the full-detail BasicShadowMap game
@@ -195,6 +223,7 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:graphics
 CHROMIUM_PATH=/usr/bin/chromium npm run test:graphics-offline
 CHROMIUM_PATH=/usr/bin/chromium npm run test:shadow-pixels
 CHROMIUM_PATH=/usr/bin/chromium npm run test:shadow-check
+CHROMIUM_PATH=/usr/bin/chromium npm run test:gpu-work
 ```
 
 The Android suite checks portrait image pixels, old blank portrait-cache recovery,

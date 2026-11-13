@@ -4,6 +4,41 @@ Rule: the game must never get slower. Measure before and after every change on i
 **Desktop numbers come from a software-rendered browser and are NOT iPhone numbers.** Only the in-game report from the
 real iPhone (⚙️ → Performance Test → Copy Test Results) counts as an iPhone measurement.
 
+## Build 42 bounded Basic shadow startup
+
+- **Physical evidence:** Basic shadows at 512 and 1536 work in the small scene
+  on the Pixel 10 Pro XL. Filtered PCF at 1536 resets before its GPU fence
+  signals. Reported stack: ANGLE / PowerVR D-Series DXT-48-1536, Chrome
+  157.0.8103.50, Android 17.0.0. The full Basic game with original warmup also
+  failed. No physical full-game timing or bounded-startup result is available.
+- **Focused desktop/software checks:** the new full-detail Basic game reaches
+  Play in 43.9 s; the previous Basic HTML in the same focused runner takes
+  62.6 s. A separate five-view before/after run takes 40.0 / 46.6 s to Play.
+  This spread does not establish a startup improvement or regression. The
+  normal shadow-free Android game reaches Play in 39.1 s in the focused run.
+- Actual depth-camera instrumentation sees 11 local startup passes, each with
+  width 26 world units, and no wide shadow pass. All 16 GPU completion fences
+  signal before play. Color/material rehearsal remains enabled. The full game
+  retains all seven graphics categories, a 1536×1536 nearest-sampled Basic map,
+  plain SAMPLER_2D shadow uniforms and visible creature/scenery shadows.
+- Before/after shader coverage (`tests/perf/shadow-startup.cjs`, both HTML files,
+  Android identity, 844×390 viewport at scale factor 2): **zero new programs in
+  all five views on both builds**: park, creatures, castle, house, castle rooms.
+  Thus this check finds no deferred shader compilation caused by the local
+  shadow rehearsal. Three-frame wall times (old/new ms): park 4349/3482,
+  creatures 7395/6694, castle 7894/7146, house 5488/5660, castle rooms 2793/2730.
+  These short software-rendered samples have differing draw counts from moving
+  creatures and alternate-frame shadow cadence; they are not stable throughput
+  measurements or evidence of physical phone speed. Longer frame-rate/freeze
+  measurement remains pending before promoting the experimental preset.
+- Real GPU-fence completion and context-loss cancellation pass in a small
+  renderer test. The game preserves a readable last-submission report after
+  simulated context loss. Default profiles, strict canvas trials, quality guards,
+  portraits and hub controls pass. Offline migration also keeps diagnostics and
+  the game separate. The full gameplay smoke suite remains pending; keep draft.
+- Regular Android shadow-free graphics and iPhone filtered-shadow settings are
+  not promoted or changed by this experimental Basic preset.
+
 ## Build 41 small shadow diagnostic
 
 - Physical Pixel 10 Pro XL: the user reports the full-detail BasicShadowMap

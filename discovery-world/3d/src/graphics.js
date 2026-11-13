@@ -30,7 +30,10 @@ export function getGraphicsProfile(search = location.search, ua = navigator.user
   const restored = safe ? GRAPHICS_TRIALS.filter(t => requested.has(t.key)).map(t => t.key) : [];
   const flags = Object.fromEntries(GRAPHICS_TRIALS.map(t => [t.key, !safe || restored.includes(t.key)]));
   const shadowType = params.get('graphics') === 'full-basic-shadows' || params.get('shadow') === 'basic' ? 'basic' : 'pcf';
-  return Object.freeze({ safe, restored: Object.freeze(restored), shadowType, ...flags });
+  // The physical Pixel passed Basic at 1536, but the full game's original
+  // whole-world warmup still reset. Keep that comparison explicitly available.
+  const localShadowWarmup = flags.shadows && shadowType === 'basic' && params.get('warmup') !== 'original';
+  return Object.freeze({ safe, restored: Object.freeze(restored), shadowType, localShadowWarmup, ...flags });
 }
 
 export const GRAPHICS = getGraphicsProfile();

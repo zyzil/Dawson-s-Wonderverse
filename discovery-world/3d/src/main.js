@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { SAFE_GRAPHICS, GRAPHICS, GRAPHICS_TRIALS } from './graphics.js';
 import { PORTRAITS } from './portraits.js';
+import { waitForGpu } from './gpu-work.js';
 
 import { Sound, NOTES } from './audio.js';
 import { CREATURES, makeCreature, makeFluff, toy, starGeometry } from './creatures.js';
@@ -33,12 +34,17 @@ import { SCULPT_STATS } from './sculpt.js';
 import { FUR } from './fur.js';
 
 const $ = id => document.getElementById(id);
+const GRAPHICS_CHECK = new URLSearchParams(location.search).get('trial') === '1';
+let graphicsStage = 'Creating renderer', graphicsLost = false;
+let localWarmupPending = GRAPHICS.localShadowWarmup;
+const graphicsReport = { build: 42, profile: GRAPHICS, userAgent: navigator.userAgent };
+const graphicsStep = stage => { graphicsStage = stage; };
 // Only explicit trial links show this return control, even if startup fails.
-if (new URLSearchParams(location.search).get('trial') === '1') {
+if (GRAPHICS_CHECK) {
   const link = document.createElement('a'); link.className = 'graphicsTrialBack';
-  link.href = 'graphics-tests.html?build=38';
+  link.href = 'graphics-tests.html?build=42';
   const trialMode = new URLSearchParams(location.search).get('graphics');
-  const trialLabel = trialMode === 'full-basic-shadows' ? 'Basic shadows · full detail'
+  const trialLabel = trialMode === 'full-basic-shadows' ? 'Basic shadows · ' + (GRAPHICS.localShadowWarmup ? 'local startup' : 'original startup')
     : trialMode === 'full-no-shadows' ? 'Full detail, no shadow maps'
     : GRAPHICS.restored.map(k => GRAPHICS_TRIALS.find(t => t.key === k).label).join(', ') || 'Working baseline';
   link.textContent = '↩ Graphics checks · ' + trialLabel + (trialMode !== 'full-basic-shadows' && GRAPHICS.shadows && GRAPHICS.shadowType === 'basic' ? ' · basic sampling' : '');
@@ -108,15 +114,39 @@ function createRenderer(canvas) {
   }
 }
 const renderer = createRenderer(canvas);
-canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); window.__oops && window.__oops('The browser reset the 3D graphics. Tap Try again. If Chrome says graphics are blocked, close Chrome completely and reopen the game.'); });
+if (GRAPHICS_CHECK) {
+  const gl = renderer.getContext(), debug = gl.getExtension('WEBGL_debug_renderer_info');
+  graphicsReport.renderer = gl.getParameter(debug ? debug.UNMASKED_RENDERER_WEBGL : gl.RENDERER);
+  graphicsReport.contextAttributes = gl.getContextAttributes();
+}
+canvas.addEventListener('webglcontextlost', e => {
+  e.preventDefault(); graphicsLost = true;
+  graphicsReport.lastSubmittedStage = graphicsStage;
+  graphicsReport.contextLost = true; graphicsReport.lossDetail = e.statusMessage || '(browser supplied no reason)';
+  window.__oops && window.__oops('The browser reset the 3D graphics. Tap Try again. If Chrome says graphics are blocked, close Chrome completely and reopen the game.');
+  if (GRAPHICS_CHECK && !$('copyGraphicsReport')) {
+    const b = document.createElement('button'), pre = document.createElement('pre');
+    b.id = 'copyGraphicsReport'; b.textContent = 'Copy graphics report';
+    pre.id = 'graphicsReport'; pre.style.cssText = 'white-space:pre-wrap;text-align:left;max-width:90vw;max-height:30vh;overflow:auto;font-size:12px';
+    pre.hidden = true;
+    b.onclick = async () => {
+      pre.textContent = JSON.stringify(graphicsReport, null, 2); pre.hidden = false;
+      try { await navigator.clipboard.writeText(pre.textContent); b.textContent = 'Copied'; }
+      catch { b.textContent = 'Copy the report below'; }
+    };
+    $('oops').append(b, pre);
+  }
+});
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.debug.checkShaderErrors = TEST; // (build 24: the shader error check forces the browser to wait for each shader the first time it is used; on only in test mode)
 renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = LIGHT.exposure;
 renderer.shadowMap.enabled = !TEST && GRAPHICS.shadows;
 // Basic samples depth as sampler2D and compares it in the shader. PCF uses a
-// sampler2DShadow / hardware comparison path. The trial changes only this method.
+// sampler2DShadow / hardware comparison path. Basic trials also bound startup
+// shadow work below; warmup=original retains the earlier comparison.
 renderer.shadowMap.type = GRAPHICS.shadowType === 'basic' ? THREE.BasicShadowMap : THREE.PCFShadowMap;
 const scene = new THREE.Scene();
+graphicsStep('Generating sky environment');
 const pmrem = new THREE.PMREMGenerator(renderer);
 // build 18 (lighting audit): reflections and soft fill come from the SKY ONLY. (Before, a bright indoor
 // studio environment lit everything from every direction, brighter than the sun and with no shadows,
@@ -926,6 +956,7 @@ function step(dt) {
   updatePit(dt); updateWorldAnim(dt, T); updateParticles(dt);
 }
 function frame() {
+  if (graphicsLost) return;
   const frameT0 = performance.now(); checkSize();
   { const now = performance.now(); if (lastFrameAt && perfMon && !G.activityOpen) perfMon.frame(now - lastFrameAt, now); lastFrameAt = now; } // (build 26: monitor: a few numbers per frame)
   if (G.activityOpen) { requestAnimationFrame(frame); return; } // (build 25: a learning game is open: the 3D world sleeps)
@@ -952,6 +983,7 @@ function frame() {
   if (world.flash > 0) { world.flash -= dt * 2.5; $('flash').style.opacity = Math.max(0, world.flash); }
   renderer.shadowMap.needsUpdate = (++shadowTick % shadowEvery) === 0; // (build 24: the sun never moves and most shadow casters stand still: redraw the shadow map every other frame)
   renderer.info.reset(); // (build 26: count every pass of the frame, not just the last one)
+  graphicsStep('Drawing live game');
   if (post.enabled) post.render(); else renderer.render(scene, camera);
   if (!TEST && !SAFE_GRAPHICS && !/[?&]hq/.test(location.search)) { gfx.work += (performance.now() - frameT0 - gfx.work) * .05; adapt(raw); }
   requestAnimationFrame(frame);
@@ -1051,7 +1083,7 @@ function sliceScenery() {
 }
 G.unslice = o => { if (o && o.parent && o.parent.userData.slice) scene.attach(o); }; // (something that starts to follow you leaves its slice)
 function updateSlices() { for (const g of slices) { const near = Math.abs(g.userData.x - camT.x) < 52; if (near && !g.parent) scene.add(g); else if (!near && g.parent) scene.remove(g); } }
-const begin = () => { if (begun) return; begun = true; G.startupMs = Math.round(performance.now()); try { chunkInstanced(); sliceScenery(); updateSlices(); } catch (e) { console.log('slices skipped', e); } renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true; requestAnimationFrame(frame); setTimeout(() => $('loading').classList.add('done'), 250); };
+const begin = () => { if (begun || graphicsLost || localWarmupPending) return; begun = true; G.startupMs = Math.round(performance.now()); try { chunkInstanced(); sliceScenery(); updateSlices(); } catch (e) { console.log('slices skipped', e); } renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true; requestAnimationFrame(frame); setTimeout(() => $('loading').classList.add('done'), 250); };
 // (build 24) shaders: compile everything in the scene before play starts (the light count is now fixed, so these stay
 // valid), then compile the model files' materials as soon as they arrive (in the background where the phone supports
 // parallel compiling), so nothing compiles the first time it comes into view.
@@ -1068,6 +1100,7 @@ const compileAll = () => {
 };
 // (build 29) prepare one newly built neighbourhood's shaders before it appears (in the background where supported)
 function warmGroup(g) { // (build 29) one rehearsal draw of a newly streamed neighbourhood, into the real buffer, before you can see it
+  if (localWarmupPending || graphicsLost) return;
   try { const b = new THREE.Box3().setFromObject(g), c = b.getCenter(new THREE.Vector3()), cam = camera.clone(); cam.position.set(c.x, 2.15, CAM_DIST); cam.lookAt(c.x, 1.15, 0); cam.updateMatrixWorld();
     const prev = renderer.getRenderTarget(), sm = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = false; if (post.enabled && !post.lite) { G.warmRT = G.warmRT || new THREE.WebGLRenderTarget(64, 32, { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(64, 32), depthBuffer: true }); renderer.setRenderTarget(G.warmRT); renderer.render(scene, cam); } renderer.setRenderTarget(prev); renderer.shadowMap.autoUpdate = sm; } catch (e) { }
 }
@@ -1080,6 +1113,7 @@ function compileGroup(g) { const prev = renderer.getRenderTarget(); if (post.ena
 const WARM_LAYER = 5, warmCam = new THREE.PerspectiveCamera(45, 2, .1, 60); warmCam.layers.set(WARM_LAYER);
 scene.traverse(o => { if (o.isLight) o.layers.enable(WARM_LAYER); }); // (lights are seen on every layer, so the shaders are the real ones)
 function warmObjects(list) {
+  if (localWarmupPending || graphicsLost) return;
   if (!list.length || !(post.enabled && !post.lite)) return;
   G.warmRT = G.warmRT || new THREE.WebGLRenderTarget(64, 32, { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(64, 32), depthBuffer: true });
   const prev = renderer.getRenderTarget(), sm = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = false; const V0 = new THREE.Vector3();
@@ -1093,22 +1127,39 @@ function warmObjects(list) {
   renderer.setRenderTarget(prev); renderer.shadowMap.autoUpdate = sm;
 }
 const fresh = [];
-let compileTimer = 0; globalThis.__ddwCompile = obj => { if (obj) fresh.push(obj); clearTimeout(compileTimer); compileTimer = setTimeout(() => { Promise.resolve(compileAll()).then(() => warmObjects(fresh.splice(0)), () => { }); }, 300); };
+function compileFresh() {
+  if (graphicsLost) return;
+  // A startup GPU fence must cover just its submitted pass. Defer other
+  // rehearsal draws until the bounded startup sequence has finished.
+  if (localWarmupPending) { compileTimer = setTimeout(compileFresh, 300); return; }
+  Promise.resolve(compileAll()).then(() => warmObjects(fresh.splice(0)), () => {});
+}
+let compileTimer = 0; globalThis.__ddwCompile = obj => { if (obj) fresh.push(obj); clearTimeout(compileTimer); compileTimer = setTimeout(compileFresh, 300); };
 // PRELOAD THE AREAS: while the loading screen shows, draw each area once into a tiny invisible picture (the house
 // upstairs and downstairs, the underground, the clouds, the castle, the park), with the sun's shadow over it. That
 // makes the graphics driver finish every shader and upload every texture and mesh NOW, not the first time you walk in.
-function warmAreas() { const warmT0 = performance.now();
+async function warmAreas() { const warmT0 = performance.now(), local = GRAPHICS.localShadowWarmup;
   // (build 29) rehearse into the SAME picture buffer the game really draws into (4x anti-aliased, with a depth texture,
   // or the lite one). The graphics driver prepares a separate drawing setup for each kind of buffer; rehearsing into a
   // plain small buffer (builds 24-28) left the real setups to be made on first sight: the stall when entering the house.
   const full = post.enabled && !post.lite, rt = new THREE.WebGLRenderTarget(64, 32, full ? { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(64, 32), depthBuffer: true } : { type: THREE.HalfFloatType }), /* (tiny, but exactly the same kind of buffer: the setups depend on the kind, not the size) */ cam = camera.clone(), shadowAuto = renderer.shadowMap.autoUpdate;
   const sp = sun.position.clone(), st = sun.target.position.clone();
+  const shown = [], back = [];
+  const metrics = G.shadowWarmup = { local, localPasses: 0, wideShadowPasses: 0, completedBatches: 0 };
   try {
     let first = true;
-    for (const [x, y] of [[1008, 0], [1012, 4.4], [1020, 0], [20, UG.floor], [45, UG.floor], [54, SKY.y], [406, 0], [2010, 0]]) {
+    const views = [[1008, 0], [1012, 4.4], [1020, 0], [20, UG.floor], [45, UG.floor], [54, SKY.y], [406, 0], [2010, 0]];
+    if (local) views.unshift([5, 0], [150, 0], [230, 0]);
+    for (const [x, y] of views) {
       cam.position.set(x, y + 2.15, CAM_DIST); cam.lookAt(x, y + 1.15, 0); cam.updateMatrixWorld();
       sun.position.set(x - 7, y + 16, 10); sun.target.position.set(x, y, 0); sun.target.updateMatrixWorld();
-      renderer.setRenderTarget(rt); renderer.render(scene, cam); if (first) { renderer.shadowMap.autoUpdate = false; first = false; } // (shadow shaders only need one pass)
+      graphicsStep(`Warming local view at ${x}, ${y}`);
+      if (local) { renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true; metrics.localPasses++; }
+      renderer.setRenderTarget(rt); renderer.render(scene, cam); if (first) { renderer.shadowMap.autoUpdate = false; first = false; }
+      if (local) {
+        renderer.setRenderTarget(null);
+        await waitForGpu(renderer); metrics.completedBatches++;
+      }
     }
     // (build 29) then draw EVERY object in the world once (things only shown when near, fur, far-away characters too),
     // with wide straight-on cameras over the outdoor world, the house, the castle rooms and the underground, so no
@@ -1116,30 +1167,48 @@ function warmAreas() { const warmT0 = performance.now();
     // (only ONE of each kind of hidden thing is shown for it: the driver's setups depend on the kind, not the number,
     //  and drawing every far tree at once made loading much longer on slow devices)
     const sig = o => { const k = []; o.traverse(q => { if (q.isMesh) k.push(q.material.uuid || '', q.geometry.attributes.uv ? 'u' : '', q.isSkinnedMesh ? 's' : '', q.isInstancedMesh ? 'i' : ''); }); return k.join(','); };
-    const shown = [], kinds = new Set(); for (const it of LOD) if (!it.o.visible) { const k = sig(it.o); if (kinds.has(k)) continue; kinds.add(k); it.o.visible = true; shown.push(it.o); } for (const f of FUR) for (const sh of f.shells) if (!sh.visible) { sh.visible = true; shown.push(sh); }
-    const back = []; if (G.life) for (const a of G.life.agents) if (a.detached) { a.detached.add(a.root); back.push(a); }
+    const kinds = new Set(); for (const it of LOD) if (!it.o.visible) { const k = sig(it.o); if (kinds.has(k)) continue; kinds.add(k); it.o.visible = true; shown.push(it.o); } for (const f of FUR) for (const sh of f.shells) if (!sh.visible) { sh.visible = true; shown.push(sh); }
+    if (G.life) for (const a of G.life.agents) if (a.detached) { a.detached.add(a.root); back.push(a); }
     const oc = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 120);
     for (const [x0, x1, y0, y1] of /[?&]noortho/.test(location.search) ? [] : [[-25, 120, -14, 16], [120, 260, -2, 16], [260, 430, -2, 22], [995, 1035, -1, 11], [1990, 2045, -1, 14]]) {
       oc.left = -(x1 - x0) / 2; oc.right = (x1 - x0) / 2; oc.top = (y1 - y0) / 2; oc.bottom = -(y1 - y0) / 2; oc.position.set((x0 + x1) / 2, (y0 + y1) / 2, 40); oc.lookAt((x0 + x1) / 2, (y0 + y1) / 2, 0); oc.updateProjectionMatrix(); oc.updateMatrixWorld();
       // (shadows too: each kind of shadow-casting thing has its own shadow shader; the sun's shadow box is stretched over the region for this one draw)
       const sc = sun.shadow.camera, keep = [sc.left, sc.right, sc.top, sc.bottom, sc.far];
       sun.position.set((x0 + x1) / 2 - 7, y1 + 16, 10); sun.target.position.set((x0 + x1) / 2, (y0 + y1) / 2, 0); sun.target.updateMatrixWorld();
-      Object.assign(sc, { left: -(x1 - x0) / 2 - 10, right: (x1 - x0) / 2 + 10, top: (y1 - y0) + 10, bottom: -(y1 - y0) - 10, far: 120 }); sc.updateProjectionMatrix();
-      renderer.shadowMap.needsUpdate = true; renderer.setRenderTarget(rt); renderer.render(scene, oc);
+      if (!local) {
+        Object.assign(sc, { left: -(x1 - x0) / 2 - 10, right: (x1 - x0) / 2 + 10, top: (y1 - y0) + 10, bottom: -(y1 - y0) - 10, far: 120 }); sc.updateProjectionMatrix();
+        metrics.wideShadowPasses++;
+      }
+      graphicsStep(`Warming scenery ${x0} to ${x1}`);
+      // Keep all color/material warmup, but never cast the entire world into
+      // one giant shadow view. Local shadow variants were exercised above.
+      renderer.shadowMap.needsUpdate = !local; renderer.setRenderTarget(rt); renderer.render(scene, oc);
       [sc.left, sc.right, sc.top, sc.bottom, sc.far] = keep; sc.updateProjectionMatrix();
+      if (local) {
+        renderer.setRenderTarget(null);
+        await waitForGpu(renderer); metrics.completedBatches++;
+      }
     }
-    for (const o of shown) o.visible = false; for (const a of back) a.detached.remove(a.root);
     G.warmed = (G.warmed || 0) + 1; G.warmMs = Math.round(performance.now() - warmT0);
-  } catch (e) { G.warmErr = String(e); }
-  renderer.shadowMap.autoUpdate = shadowAuto; renderer.shadowMap.needsUpdate = true;
-  renderer.setRenderTarget(null); if (rt.depthTexture) rt.depthTexture.dispose(); rt.dispose(); sun.position.copy(sp); sun.target.position.copy(st); sun.target.updateMatrixWorld();
+  } catch (e) { G.warmErr = String(e); if (local) throw e; }
+  finally {
+    for (const o of shown) o.visible = false; for (const a of back) a.detached.remove(a.root);
+    renderer.shadowMap.autoUpdate = shadowAuto; renderer.shadowMap.needsUpdate = true;
+    renderer.setRenderTarget(null); if (rt.depthTexture) rt.depthTexture.dispose(); rt.dispose(); sun.position.copy(sp); sun.target.position.copy(st); sun.target.updateMatrixWorld();
+    graphicsReport.shadowWarmup = metrics;
+  }
 }
 Promise.race([Promise.all([assetsReady, landmarksReady]), new Promise(r => setTimeout(r, 6000))])
-  .then(() => compileAll()).then(() => { warmAreas(); begin(); }, begin);
+  .then(() => { graphicsStep('Compiling scene materials'); return compileAll(); })
+  .then(() => warmAreas()).then(() => { localWarmupPending = false; begin(); }, e => {
+    localWarmupPending = false;
+    if (GRAPHICS.localShadowWarmup) { if (!graphicsLost) window.__oops?.('Graphics startup stopped: ' + e.message); }
+    else begin();
+  });
 setTimeout(begin, 15000);
 
 // debug/test hook (used by the automated tests only)
-window.__DDW3 = { THREE, graphics: GRAPHICS,
+window.__DDW3 = { THREE, graphics: GRAPHICS, graphicsReport,
   player, world, keys, fluffs, G, camera, Sound, save, IN, renderer, FR: THREE.Frustum, LOWSTATS, SCULPT_STATS,
   teleport(x, y = 0) { player.ride = null; player.stair = null; player.layer = x >= 2000 ? 'castle' : x >= 1000 ? 'in' : ''; player.x = x; player.y = y; player.vx = player.vy = 0; player.grounded = y === 0; snapCamera(); },
   toScreen(x, y, z = 0) { V.set(x, y, z).project(camera); const r = canvas.getBoundingClientRect(); return { x: (V.x + 1) / 2 * r.width + r.left, y: (1 - V.y) / 2 * r.height + r.top }; },

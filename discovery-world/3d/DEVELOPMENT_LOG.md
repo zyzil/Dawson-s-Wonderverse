@@ -4,6 +4,34 @@ Completed changes and how each was tested, newest first. Each checkpoint says wh
 browser vs. a real iPhone). The routine and rules are in `CLAUDE.md`; unfinished work is in `NEXT_TASKS.md`; measurements
 are in `PERFORMANCE_LOG.md`.
 
+## Checkpoint: build 42 bounded Basic shadow startup
+- **Physical evidence:** the Pixel 10 Pro XL draws the minimal scene with Basic
+  at 512×512 and 1536×1536. PCF at 1536 resets before its first shadow draw's
+  completion fence signals. Report: ANGLE / Imagination PowerVR D-Series
+  DXT-48-1536, Chrome 157.0.8103.50, Android 17.0.0. This reproduces one failing
+  filtered path without the game's assets/effects/warmup. It does not identify
+  a specific ANGLE vs native-driver instruction or explain every full-game reset.
+- The original Basic full-game trial also failed. Change its startup only:
+  warm shadows in 11 local views (including spawn, park, creature area and the
+  original indoor/underground/sky/castle views), then retain all five wide color
+  rehearsals without widening or updating their shadow maps. Keep all graphics
+  categories, live shadow casting and the 1536×1536 mobile Basic map.
+- Each of the 16 submitted startup batches waits for a GPU fence asynchronously;
+  no gl.finish or blocking wait. Defer newly loaded-object rehearsals and the
+  15-second start fallback until these batches finish, preventing interleaving
+  draws. Restore temporary visibility, detached agents, render targets and sun
+  state in finally, including on loss. Stop rendering after context loss.
+- Explicit Basic-shadow profiles use the new startup; `warmup=original` retains
+  the failed comparison path. Regular Android keeps the confirmed shadow-free
+  settings, and regular iPhone retains its original filtered shadow settings.
+- Trial error screens offer Copy graphics report, including the last submitted
+  stage (not an asserted GPU cause), accepted canvas request and GPU identity.
+  Results remain manual and game progress is untouched. Preserve pre-change HTML
+  in `../backups/3D_build42_index.html`.
+- **Validation:** focused checks and desktop/software measurements are recorded
+  in PERFORMANCE_LOG.md. Physical full-game validation and the full gameplay
+  smoke suite are pending; keep the fork PR draft.
+
 ## Checkpoint: build 41 small physical-device shadow diagnostic
 - **New physical evidence:** the full-detail BasicShadowMap trial also resets
   the Pixel 10 Pro XL. Its screenshot shows our context-loss handler, not a
