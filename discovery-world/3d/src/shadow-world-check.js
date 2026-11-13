@@ -19,8 +19,11 @@ function receiverGroup(o) {
 // world shadow casters with NO world color draws, then test the original surface
 // shaders with the depth map frozen. Never change light.castShadow or shader
 // defines: receiveShadow is a runtime uniform, not a replacement material.
-export async function checkWorldShadows({ renderer, scene, camera, sun, target, report, step }) {
-  const check = report.worldShadowCheck = { probes: [], complete: false, stateRestored: false };
+export async function checkWorldShadows({ renderer, scene, camera, sun, target, report, step, view }) {
+  const location = view ? { ...view, aspect: camera.aspect } : { cameraPosition: camera.position.toArray(), aspect: camera.aspect };
+  const check = report.worldShadowCheck = { view: location, probes: [], complete: false, stateRestored: false };
+  const history = { view: location, complete: false, completedProbes: 0, stateRestored: false };
+  (report.worldShadowChecks ||= []).push(history);
   const objects = new Map(), lights = new Map();
   const previousTarget = renderer.getRenderTarget(), auto = renderer.shadowMap.autoUpdate, needs = renderer.shadowMap.needsUpdate;
   const infoAuto = renderer.info.autoReset, shadowCamera = camera.clone();
@@ -63,7 +66,9 @@ export async function checkWorldShadows({ renderer, scene, camera, sun, target, 
         if (o.castShadow) enabledCasters++; if (o.receiveShadow) enabledReceivers++;
       }
       const probe = { name, completed: false, depthOnly, update, enabledCasters, enabledReceivers, shadowDraws: 0, receiverDraws: 0 };
-      check.probes.push(probe); activeProbe = probe; step('World shadow check: ' + name);
+      check.probes.push(probe); activeProbe = probe;
+      history.lastProbe = name;
+      step('World shadow check' + (view ? ` [${view.x}, ${view.y}]` : '') + ': ' + name);
       renderer.shadowMap.needsUpdate = update; renderer.info.reset();
       renderer.setRenderTarget(target); renderer.render(scene, depthOnly ? shadowCamera : camera);
       probe.totalDraws = renderer.info.render.calls;
@@ -73,6 +78,7 @@ export async function checkWorldShadows({ renderer, scene, camera, sun, target, 
       probe.glError = renderer.getContext().getError();
       if (probe.glError) throw new Error('World shadow check WebGL error ' + probe.glError);
       probe.completed = true;
+      history.completedProbes++;
     }
     for (const group of ['static opaque', 'static cutout/displaced', 'instanced opaque', 'instanced cutout/displaced', 'skinned opaque', 'skinned cutout/displaced']) {
       refresh();
@@ -87,7 +93,7 @@ export async function checkWorldShadows({ renderer, scene, camera, sun, target, 
     }
     await draw('receive: all world surfaces', { allReceivers: true });
     await draw('combined: original world draw', { allReceivers: true, update: true });
-    check.complete = true;
+    check.complete = true; history.complete = true;
   } finally {
     activeProbe = null;
     for (const [o, saved] of objects) { o.castShadow = saved.cast; o.receiveShadow = saved.receive; o.onBeforeShadow = saved.before; o.onBeforeRender = saved.beforeRender; }
@@ -96,5 +102,6 @@ export async function checkWorldShadows({ renderer, scene, camera, sun, target, 
     renderer.info.autoReset = infoAuto; renderer.setRenderTarget(previousTarget);
     check.stateRestored = [...objects].every(([o, s]) => o.castShadow === s.cast && o.receiveShadow === s.receive && o.onBeforeShadow === s.before && o.onBeforeRender === s.beforeRender)
       && [...lights].every(([o, mask]) => o.layers.mask === mask);
+    history.stateRestored = check.stateRestored;
   }
 }

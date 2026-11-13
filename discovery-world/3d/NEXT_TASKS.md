@@ -4,12 +4,13 @@ Prioritized unfinished work, highest first. Take the top item that can be done w
 remove it here and record it in `DEVELOPMENT_LOG.md`. Add new findings (bugs, ideas, measurements that look wrong) as you go.
 
 ## Waiting for the user
-- **Pixel 10 Pro XL world shadow checks:** both build 43 simple preflight
-  draws passed; the actual first world view still reset. Run build 44
-  `?graphics=full-basic-shadows&preflight=1&worldprobe=1&trial=1` and copy the
-  failure report. It separates depth casters by geometry group and receiving
-  by surface group. Use actual draw counts: zero draws is not proof a group
-  works. Keep the normal Android game on its confirmed shadow-free profile.
+- **Pixel 10 Pro XL underground/later checks:** build 44 passed every
+  starting-view probe and six local views, then reset at (20, -6). Run build 45
+  `?graphics=full-basic-shadows&preflight=1&worldprobe=areas&trial=1` and copy
+  the failure report. It checks that underground view and the remaining local
+  views while preserving the successful initial sequence and completed-view
+  history. Standard/custom/fur receiving had zero starting-view draws and are
+  still unproved on the phone. Keep the confirmed shadow-free normal profile.
 - **Longer Pixel play session:** full detail without shadow maps is physically
   confirmed working and is now the normal Android profile. Check a longer play
   session and offline reopening when convenient. The precise failing GPU

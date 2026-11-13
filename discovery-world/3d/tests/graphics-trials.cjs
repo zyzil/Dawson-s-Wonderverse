@@ -47,6 +47,7 @@ async function main() {
         basicShadows: getGraphicsProfile('?graphics=full-basic-shadows', ua),
         preflightShadows: getGraphicsProfile('?graphics=full-basic-shadows&preflight=1', ua),
         worldCheck: getGraphicsProfile('?graphics=full-basic-shadows&preflight=1&worldprobe=1', ua),
+        areaCheck: getGraphicsProfile('?graphics=full-basic-shadows&preflight=1&worldprobe=areas', ua),
         noShadowPreflight: getGraphicsProfile('?graphics=full-no-shadows&preflight=1', ua),
         originalWarmup: getGraphicsProfile('?graphics=full-basic-shadows&warmup=original', ua),
         iphone: getGraphicsProfile('', 'iPhone'), unknown: getGraphicsProfile('?graphics=safe&restore=bogus', ua),
@@ -69,6 +70,9 @@ async function main() {
     assert.equal(profiles.preflightShadows.shadowPreflight, true);
     assert.equal(profiles.basicShadows.shadowPreflight, false);
     assert.equal(profiles.worldCheck.worldShadowCheck, true);
+    assert.equal(profiles.areaCheck.worldShadowCheck, true);
+    assert.equal(profiles.areaCheck.worldShadowCheckAreas, true);
+    assert.equal(profiles.worldCheck.worldShadowCheckAreas, false);
     assert.equal(profiles.androidDefault.worldShadowCheck, false);
     assert.equal(profiles.preflightShadows.worldShadowCheck, false);
     assert.equal(profiles.noShadowPreflight.shadowPreflight, false);
@@ -93,12 +97,13 @@ async function main() {
     await hub.getByLabel('Full detail without shadow maps result').selectOption('Worked');
     assert.equal(new URL(await hub.locator('#preflightShadows').getAttribute('href'), base).searchParams.get('preflight'), '1');
     assert.equal(new URL(await hub.locator('#worldShadows').getAttribute('href'), base).searchParams.get('worldprobe'), '1');
-    await hub.getByLabel('World shadow checks result').selectOption('Worked');
+    assert.equal(new URL(await hub.locator('#areaShadows').getAttribute('href'), base).searchParams.get('worldprobe'), 'areas');
+    await hub.getByLabel('Area shadow checks result').selectOption('Worked');
     assert.equal(new URL(await hub.locator('#next').getAttribute('href')).searchParams.get('restore'), 'scenery');
     await hub.reload(); await hub.locator('[data-feature="power"]').waitFor();
     assert.equal(await hub.getByLabel('Sharper picture result').inputValue(), 'Worked');
     assert.equal(await hub.getByLabel('Full detail without shadow maps result').inputValue(), 'Worked');
-    assert.equal(await hub.getByLabel('World shadow checks result').inputValue(), 'Worked');
+    assert.equal(await hub.getByLabel('Area shadow checks result').inputValue(), 'Worked');
     assert.equal(await hub.evaluate(() => localStorage.getItem('dawsons-discovery-world-3d-v1')), saved);
     await hub.locator('#copy').click();
     assert.match(await hub.locator('#summary').innerText(), /Sharper picture: Worked/);
@@ -143,19 +148,22 @@ async function main() {
     await fallback.close();
     console.log('PASS default Android canvas fallback without weakening explicit trials');
 
-    const cases = ['baseline', ...KEYS, 'full-no-shadows', 'android-default', 'full-basic-shadows', 'full-basic-preflight', 'full-basic-world'];
+    const cases = ['baseline', ...KEYS, 'full-no-shadows', 'android-default', 'full-basic-shadows', 'full-basic-preflight', 'full-basic-world', 'full-basic-areas'];
     const selected = process.env.GRAPHICS_CASES ? process.env.GRAPHICS_CASES.split(',') : cases;
     assert(selected.length && selected.every(k => cases.includes(k)), 'valid requested game scenarios');
     for (const key of cases.filter(k => selected.includes(k))) {
       const basicCase = key.startsWith('full-basic-');
-      const ctx = await browser.newContext({ userAgent: PIXEL, viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+      const ctx = await browser.newContext({ userAgent: PIXEL, viewport: key === 'full-basic-areas' ? { width: 390, height: 844 } : { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
       const page = await ctx.newPage(), errors = [];
       page.on('pageerror', e => errors.push(e.message));
       await page.addInitScript(() => {
         // Observe actual shadow-camera updates, not just app bookkeeping.
         Object.defineProperty(window, '__DDW3', { configurable: true, set(D) {
           Object.defineProperty(window, '__DDW3', { value: D, writable: true, configurable: true });
-          window.__shadowViews = []; window.__preflightDraws = [];
+          window.__shadowViews = []; window.__preflightDraws = []; window.__worldChecks = [];
+          let currentWorldCheck;
+          Object.defineProperty(D.graphicsReport, 'worldShadowCheck', { enumerable: true, configurable: true,
+            get: () => currentWorldCheck, set: v => { currentWorldCheck = v; __worldChecks.push(v); } });
           const render = D.renderer.render.bind(D.renderer);
           D.renderer.render = (scene, camera) => {
             const target = D.renderer.getRenderTarget();
@@ -176,13 +184,18 @@ async function main() {
       });
       const query = new URLSearchParams({ graphics: 'safe', trial: '1' });
       if (key === 'android-default') { query.delete('graphics'); query.delete('trial'); }
-      else if (basicCase) { query.set('graphics', 'full-basic-shadows'); if (key !== 'full-basic-shadows') query.set('preflight', '1'); if (key === 'full-basic-world') query.set('worldprobe', '1'); }
+      else if (basicCase) { query.set('graphics', 'full-basic-shadows'); if (key !== 'full-basic-shadows') query.set('preflight', '1'); if (key === 'full-basic-world') query.set('worldprobe', '1'); if (key === 'full-basic-areas') query.set('worldprobe', 'areas'); }
       else if (key === 'full-no-shadows') query.set('graphics', key);
       else if (key !== 'baseline') query.set('restore', key);
       const start = Date.now();
       await page.goto(base + '/game?' + query, { timeout: 180000 });
-      await page.waitForFunction(() => window.__DDW3 && document.getElementById('loading').classList.contains('done'), null, { timeout: 180000 });
+      await page.waitForFunction(() => window.__DDW3 && document.getElementById('loading').classList.contains('done'), null, { timeout: key === 'full-basic-areas' ? 300000 : 180000 });
       if (basicCase || ['scenery', 'full-no-shadows', 'android-default'].includes(key)) await page.waitForFunction(() => __DDW3.LOWSTATS.hi > 0, null, { timeout: 30000 });
+      if (key === 'full-basic-areas') {
+        assert(await page.locator('#rotate').isVisible(), 'portrait startup retains the normal rotate prompt');
+        await page.setViewportSize({ width: 844, height: 390 });
+        await page.locator('#rotate').waitFor({ state: 'hidden' });
+      }
       await page.locator('#playBtn').tap();
       const actual = await page.evaluate(() => {
         const D = __DDW3, a = D.renderer.getContext().getContextAttributes();
@@ -243,17 +256,26 @@ async function main() {
           assert(check.draws.every(d => d.sameMap));
           console.log('PASS actual canvas-first allocation and original HDR/MSAA/depth target:', JSON.stringify(check));
         }
-        if (key === 'full-basic-world') {
+        if (key === 'full-basic-world' || key === 'full-basic-areas') {
           const check = await page.evaluate(() => __DDW3.graphicsReport.worldShadowCheck);
           assert(check.complete && check.stateRestored && check.probes.length >= 10);
           assert(check.probes.every(p => p.completed && p.glError === 0));
           assert(check.probes.filter(p => p.depthOnly).every(p => p.colorDraws === 0));
           assert(check.probes.filter(p => !p.depthOnly && !p.update).every(p => p.shadowDraws === 0));
           assert(check.probes.some(p => p.depthOnly && p.shadowDraws > 0));
-          assert(check.probes.some(p => p.name === 'receive: fur' && p.receiverDraws > 0));
+          if (key === 'full-basic-world') assert(check.probes.some(p => p.name === 'receive: fur' && p.receiverDraws > 0));
           assert.equal(check.probes.find(p => p.name === 'surfaces: shadow receiving off').receiverDraws, 0);
           assert(check.probes.some(p => p.name === 'combined: original world draw' && p.shadowDraws > 0 && p.colorDraws > 0));
           console.log('PASS actual world casting and receiver-group checks:', JSON.stringify(check));
+        }
+        if (key === 'full-basic-areas') {
+          const views = await page.evaluate(() => ({ history: __DDW3.graphicsReport.worldShadowChecks,
+            checks: __worldChecks.map(c => ({ view: c.view, complete: c.complete, stateRestored: c.stateRestored,
+              probes: c.probes.map(p => ({ name: p.name, completed: p.completed, shadowDraws: p.shadowDraws, receiverDraws: p.receiverDraws, colorDraws: p.colorDraws, glError: p.glError })) })) }));
+          assert.deepEqual(views.history.map(c => [c.view.x, c.view.y]), [[5,0],[20,-6],[45,-6],[54,9.5],[406,0],[2010,0]]);
+          assert(views.history.every(c => c.complete && c.stateRestored && c.completedProbes > 0));
+          assert(views.checks.every(c => c.complete && c.stateRestored && c.view.aspect < 1 && c.probes.every(p => p.completed && p.glError === 0)));
+          console.log('PASS portrait area checks:', JSON.stringify(views));
         }
         console.log('PASS full-detail Basic startup:', startupMs);
         await page.screenshot({ path: path.join(ROOT, 'screenshots/android-basic-shadows.jpg'), type: 'jpeg', timeout: 120000 });
@@ -263,7 +285,7 @@ async function main() {
           await page.locator('#copyGraphicsReport').waitFor();
           await page.locator('#copyGraphicsReport').click();
           const report = JSON.parse(await page.locator('#graphicsReport').innerText());
-          assert.equal(report.build, 44); assert.equal(report.contextLost, true);
+          assert.equal(report.build, 45); assert.equal(report.contextLost, true);
           assert.equal(report.profile.shadowType, 'basic'); assert(report.lastSubmittedStage);
           console.log('PASS game context-loss report');
         }

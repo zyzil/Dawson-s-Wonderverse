@@ -31,9 +31,13 @@ async function main() {
       const objects=[];scene.traverse(o=>{if(o.material)objects.push([o,o.castShadow,o.receiveShadow,o.onBeforeShadow,o.onBeforeRender]);});
       const lightMask=sun.layers.mask, target=new THREE.WebGLRenderTarget(96,64), warm=makeWarmTarget(true);
       function image(){r.setRenderTarget(target);r.render(scene,camera);const a=new Uint8Array(96*64*4);r.readRenderTargetPixels(target,0,0,96,64,a);return a;}
-      const before=image(),report={};let stage='',error='';const render=r.render.bind(r);
-      r.render=(s,c)=>{render(s,c);if(lose&&stage==='World shadow check: receive: skinned bodies')r.getContext().getExtension('WEBGL_lose_context').loseContext();};
-      try{await checkWorldShadows({renderer:r,scene,camera,sun,target:warm,report,step:s=>stage=s});}catch(e){error=e.message;}
+      const before=image(),report={};let stage='',error='',failThisView=false;const render=r.render.bind(r);
+      r.render=(s,c)=>{render(s,c);if(lose&&failThisView&&stage.endsWith('receive: skinned bodies'))r.getContext().getExtension('WEBGL_lose_context').loseContext();};
+      try{
+        await checkWorldShadows({renderer:r,scene,camera,sun,target:warm,report,step:s=>stage=s,view:{x:0,y:0}});
+        const secondCamera=camera.clone();secondCamera.position.x+=1;secondCamera.lookAt(1,.3,0);failThisView=true;
+        await checkWorldShadows({renderer:r,scene,camera:secondCamera,sun,target:warm,report,step:s=>stage=s,view:{x:1,y:0}});
+      }catch(e){error=e.message;}
       const restored=objects.every(([o,c,v,f,b])=>o.castShadow===c&&o.receiveShadow===v&&o.onBeforeShadow===f&&o.onBeforeRender===b)&&sun.layers.mask===lightMask&&r.getRenderTarget()===target&&r.shadowMap.autoUpdate===true;
       let samePixels=false;if(!lose){const after=image();samePixels=before.every((v,i)=>v===after[i]);}
       const result={report,error,restored,samePixels};warm.dispose();target.dispose();sun.shadow.map?.dispose();r.dispose();return result;
@@ -47,6 +51,11 @@ async function main() {
     for(const lose of [false,true]) {
       const out=await page.evaluate(lose=>run(lose),lose), check=out.report.worldShadowCheck;
       assert(out.restored&&check.stateRestored);
+      assert.equal(out.report.worldShadowChecks.length,2);
+      assert.equal(out.report.worldShadowChecks[0].complete,true);
+      assert.equal(out.report.worldShadowChecks[1].complete,!lose);
+      assert.equal(check.view.x,1);
+      assert(out.report.worldShadowChecks.every(v=>v.stateRestored));
       assert(check.probes.filter(p=>p.depthOnly).every(p=>p.colorDraws===0),'depth checks must draw no world surfaces');
       assert(check.probes.filter(p=>!p.depthOnly&&!p.update).every(p=>p.shadowDraws===0),'surface checks must not update depth');
       assert(check.probes.some(p=>p.name==='cast: skinned opaque'&&p.shadowDraws>0));

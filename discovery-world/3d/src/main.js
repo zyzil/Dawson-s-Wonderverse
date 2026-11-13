@@ -39,7 +39,7 @@ const $ = id => document.getElementById(id);
 const GRAPHICS_CHECK = new URLSearchParams(location.search).get('trial') === '1';
 let graphicsStage = 'Creating renderer', graphicsLost = false;
 let localWarmupPending = GRAPHICS.localShadowWarmup;
-const graphicsReport = { build: 44, profile: GRAPHICS, userAgent: navigator.userAgent };
+const graphicsReport = { build: 45, profile: GRAPHICS, userAgent: navigator.userAgent };
 const graphicsStep = stage => { graphicsStage = stage; };
 function showGraphicsReport() {
   if (!GRAPHICS_CHECK || $('copyGraphicsReport')) return;
@@ -57,9 +57,9 @@ function showGraphicsReport() {
 // Only explicit trial links show this return control, even if startup fails.
 if (GRAPHICS_CHECK) {
   const link = document.createElement('a'); link.className = 'graphicsTrialBack';
-  link.href = 'graphics-tests.html?build=44';
+  link.href = 'graphics-tests.html?build=45';
   const trialMode = new URLSearchParams(location.search).get('graphics');
-  const trialLabel = trialMode === 'full-basic-shadows' ? 'Basic shadows · ' + (GRAPHICS.worldShadowCheck ? 'world checks' : GRAPHICS.shadowPreflight ? 'canvas-first startup' : GRAPHICS.localShadowWarmup ? 'local startup' : 'original startup')
+  const trialLabel = trialMode === 'full-basic-shadows' ? 'Basic shadows · ' + (GRAPHICS.worldShadowCheckAreas ? 'area checks' : GRAPHICS.worldShadowCheck ? 'world checks' : GRAPHICS.shadowPreflight ? 'canvas-first startup' : GRAPHICS.localShadowWarmup ? 'local startup' : 'original startup')
     : trialMode === 'full-no-shadows' ? 'Full detail, no shadow maps'
     : GRAPHICS.restored.map(k => GRAPHICS_TRIALS.find(t => t.key === k).label).join(', ') || 'Working baseline';
   link.textContent = '↩ Graphics checks · ' + trialLabel + (trialMode !== 'full-basic-shadows' && GRAPHICS.shadows && GRAPHICS.shadowType === 'basic' ? ' · basic sampling' : '');
@@ -1151,13 +1151,16 @@ async function warmAreas() { const warmT0 = performance.now(), local = GRAPHICS.
   const shown = [], back = [];
   const metrics = G.shadowWarmup = { local, localPasses: 0, wideShadowPasses: 0, completedBatches: 0 };
   try {
-    let first = true;
+    let first = true, reachedUnderground = false;
     const views = [[1008, 0], [1012, 4.4], [1020, 0], [20, UG.floor], [45, UG.floor], [54, SKY.y], [406, 0], [2010, 0]];
     if (local) views.unshift([5, 0], [150, 0], [230, 0]);
     for (const [x, y] of views) {
       cam.position.set(x, y + 2.15, CAM_DIST); cam.lookAt(x, y + 1.15, 0); cam.updateMatrixWorld();
       sun.position.set(x - 7, y + 16, 10); sun.target.position.set(x, y, 0); sun.target.updateMatrixWorld();
-      if (first && GRAPHICS.worldShadowCheck) await checkWorldShadows({ renderer, scene, camera: cam, sun, target: rt, report: graphicsReport, step: graphicsStep });
+      if (x === 20 && y === UG.floor) reachedUnderground = true;
+      if (GRAPHICS.worldShadowCheck && (first || (GRAPHICS.worldShadowCheckAreas && reachedUnderground))) {
+        await checkWorldShadows({ renderer, scene, camera: cam, sun, target: rt, report: graphicsReport, step: graphicsStep, view: { x, y } });
+      }
       graphicsStep(`Warming local view at ${x}, ${y}`);
       if (local) { renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true; metrics.localPasses++; }
       renderer.setRenderTarget(rt); renderer.render(scene, cam); if (first) { renderer.shadowMap.autoUpdate = false; first = false; }

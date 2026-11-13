@@ -1,5 +1,33 @@
 # Pixel 10 Pro test branch
 
+## Current physical result and area checks (build 45)
+
+Build 44 completed all 13 starting-view checks on the Pixel, including the
+combined world draw. Six local views then completed. The next view, underground
+at **(20, -6)**, reset before its GPU fence signaled. Starting-view receiving draw
+submissions included physical surfaces, instanced scenery and a skinned body;
+standard, custom and fur had zero receiving draws and remain unproved.
+
+Run the extended area diagnostic:
+<https://zyzil.github.io/Dawson-s-Wonderverse/discovery-world/3d/?graphics=full-basic-shadows&preflight=1&worldprobe=areas&trial=1&build=45>.
+
+It preserves the initial check sequence, then separates casting and receiving
+at both underground views and the remaining sky/castle views before their normal
+local draw. This may load more slowly. If it resets, use **Copy graphics report**.
+The latest `worldShadowCheck` includes its coordinates and aspect; the compact
+`worldShadowChecks` history preserves completed views, probe counts and state
+restoration even if a later view fails.
+
+The new browser check uses portrait orientation, closer to the phone's visible
+area. Actual draw counts still determine coverage; completion with zero receiving
+draws is not proof of support for that material group. The stage labels name the
+submitted view/category, not a specific GPU instruction. The exact cause remains
+unknown, and this run is diagnostic rather than a claimed phone fix.
+
+`worldprobe=1` retains build 44's starting-view-only checks. Normal Android stays
+on the confirmed shadow-free profile; saves are unchanged. Force-stop Chrome
+before the next check if the previous reset left graphics blocked.
+
 ## Current result and automatic world checks (build 44)
 
 On the physical Pixel, **both build 43 simple probes passed**: on the game's

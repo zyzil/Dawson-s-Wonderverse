@@ -4,6 +4,42 @@ Rule: the game must never get slower. Measure before and after every change on i
 **Desktop numbers come from a software-rendered browser and are NOT iPhone numbers.** Only the in-game report from the
 real iPhone (⚙️ → Performance Test → Copy Test Results) counts as an iPhone measurement.
 
+## Build 45 underground and later local-view diagnostics
+
+- Physical build 44 result: all starting-view probes completed with zero GL
+  errors, followed by six completed local batches. The first underground view
+  (20, -6) reset. Standard/custom/fur had zero starting-view receiving draws,
+  so those groups were not proved. This is not a confirmed completed shadow fix.
+- Explicit `worldprobe=areas` preserves the initial check sequence, then checks
+  both underground views and the remaining sky/castle views. It adds loading
+  work only to this diagnostic. Normal profiles and the starting-only comparison
+  keep their rendering behavior. No extra per-frame work is introduced.
+- Desktop/software rendering, portrait 390×844 at scale factor 2: all **78**
+  probes complete with zero GL errors across six views, each aspect 0.4621:
+  (5,0), (20,-6), (45,-6), (54,9.5), (406,0), (2010,0). Each view restores state,
+  completes its normal local draw, and subsequent wide color warmup completes.
+  All original graphics categories, map resolution and sampler types remain.
+- Total receiving draw submissions in those views: 21, 19, 20, 37, 50, 6.
+  Standard/custom/fur have zero submissions in several narrow views, explicitly
+  visible in the reports. Positive submissions are not a rendered-pixel test of
+  each material; these checks establish submitted work and GPU completion.
+- Portrait startup, rotating through the app's real landscape prompt, and
+  tapping Play takes 69.8 s in the focused run. Build 44's earlier landscape
+  starting-only run was 59.2 s; these different scenarios are not a throughput
+  comparison or physical phone speed claim. The first portrait test completed
+  loading but correctly encountered the rotate overlay; verification now follows
+  the real rotation flow rather than bypassing it.
+- A small actual-renderer test completes one view then loses context in a
+  second view. Earlier completion history survives, the later probe remains
+  incomplete, and flags/callbacks/light masks/targets restore. Two successful
+  views retain identical rendered pixels. Full-game reports preserve the latest
+  detailed view and compact completed-view history after a simulated reset.
+- Profile/control/save-isolation, strict canvas rejection, portrait startup,
+  rotation, actual depth/receiving draw counts, map/sampler state, copied error
+  reports and offline cache migration pass focused checks. The full gameplay
+  suite, longer performance measurement and physical area-check results remain
+  pending. Keep the fork PR draft and the confirmed shadow-free Android default.
+
 ## Build 44 automatic world shadow checks
 
 - **Physical result:** both build 43 simple probes passed on the Pixel with

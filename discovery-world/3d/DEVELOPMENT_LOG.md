@@ -4,6 +4,33 @@ Completed changes and how each was tested, newest first. Each checkpoint says wh
 browser vs. a real iPhone). The routine and rules are in `CLAUDE.md`; unfinished work is in `NEXT_TASKS.md`; measurements
 are in `PERFORMANCE_LOG.md`.
 
+## Checkpoint: build 45 underground and remaining local-view diagnostics
+- **Physical build 44 result:** all 13 starting-view probes passed. Actual depth
+  draws: static 100, instanced 2, skinned 1, all casters 103. Receiving draws:
+  physical 19, instanced 1, skinned 1; standard, custom and fur had zero receiving
+  draws and remain unproved. The original combined draw passed. Six subsequent
+  local batches completed, then (20, -6), the first underground view, reset.
+- Add explicit `worldprobe=areas`: retain the starting-view checks, preserving
+  the successful setup sequence, and check (20, -6), (45, -6), (54, 9.5),
+  (406, 0), (2010, 0) before their normal local draw. Avoid repeating checks in
+  the three house views already passed on the phone. No rendering/shader path
+  or quality settings are replaced by this diagnostic extension.
+- Include view coordinates and camera aspect in each full check report and
+  phase label. Keep full details for the latest view, plus compact per-view
+  completion/count/restoration history, so a later failure preserves the earlier
+  successes without duplicating every probe. The old `worldprobe=1` still checks
+  only the starting view; normal profiles never run these checks.
+- Verify in a portrait browser: earlier desktop landscape results did not match
+  the phone's narrow visible area. Actual per-probe draw counts remain necessary;
+  a globally enabled group outside the view is not a verified group.
+- Preserve pre-change HTML in `../backups/3D_build45_index.html`. The hub records
+  this run separately; saves are untouched. A small renderer test now completes
+  one view then loses context in another, verifying that first-view history and
+  state restoration survive. Successful two-view checks retain identical output.
+- Focused validation and timings are in PERFORMANCE_LOG.md. Physical area-check
+  results and the full gameplay suite remain pending; keep the fork PR draft and
+  normal Android on its confirmed shadow-free settings.
+
 ## Checkpoint: build 44 automatic world shadow checks
 - **New physical evidence:** build 43 passed both simple preflight probes on
   the Pixel, with zero GL errors, retained 1536×1536 Basic map, game AA=true

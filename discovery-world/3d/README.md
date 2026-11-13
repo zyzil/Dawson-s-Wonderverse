@@ -4,6 +4,16 @@ This is the full rebuild of Dawson's Discovery World in real 3D. It is a **separ
 
 Play: open `index.html`. It is one self-contained file and works offline. Once merged, it is also on GitHub Pages at `…/discovery-world/3d/`.
 
+## Build 45: check the underground and remaining local views
+
+The Pixel completed all starting-view probes and six local views in build 44,
+then reset at underground view (20, -6). `worldprobe=areas` keeps the starting
+checks and repeats them at both underground views and the remaining sky/castle
+views. Reports label the coordinates and camera aspect, preserve a compact
+history of completed views and keep full details for the latest view. Normal
+profiles and the earlier `worldprobe=1` comparison are unchanged. This is a
+slower diagnostic run; a phone shadow fix is still unconfirmed.
+
 ## Build 44: separate actual world casting and surface shading
 
 The physical Pixel passed both build 43 simple draws, including the exact HDR
