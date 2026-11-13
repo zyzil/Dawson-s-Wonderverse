@@ -19,7 +19,7 @@ async function main() {
   const server = http.createServer((req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     const route = req.url.split('?')[0];
-    const files = { '/sw.js': ['sw.js', 'text/javascript'], '/src/graphics.js': ['src/graphics.js', 'text/javascript'], '/graphics-tests.html': ['graphics-tests.html', 'text/html'] };
+    const files = { '/sw.js': ['sw.js', 'text/javascript'], '/src/graphics.js': ['src/graphics.js', 'text/javascript'], '/graphics-tests.html': ['graphics-tests.html', 'text/html'], '/shadow-check.html': ['shadow-check.html', 'text/html'] };
     if (route === '/sw.js' && legacy) { res.setHeader('Content-Type', 'text/javascript'); res.end(oldWorker); }
     else if (files[route]) { res.setHeader('Content-Type', files[route][1]); res.end(fs.readFileSync(path.join(ROOT, files[route][0]))); }
     else if (route === '/' || route === '/index.html') {
@@ -60,9 +60,13 @@ async function main() {
     await page.goto(base + '/graphics-tests.html?build=37');
     await page.locator('[data-feature="power"]').waitFor();
     assert.equal(await page.locator('.check').count(), 7, 'offline checks and profile module are available');
+    await page.goto(base + '/shadow-check.html?size=1536&method=basic&build=41');
+    assert.equal(await page.locator('h1').innerText(), 'Small shadow check');
+    await page.goto(base + '/?graphics=safe');
+    assert.equal(await page.locator('h1').innerText(), 'Offline game fixture', 'small shadow check cannot replace the cached game');
     await ctx.setOffline(false);
     await ctx.close();
-    console.log('PASS legacy helper upgrades from the checks page; offline game/check links and unrelated caches survive');
+    console.log('PASS legacy helper upgrades; offline game, graphics hub, small shadow check and unrelated caches survive');
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => server.close(resolve));

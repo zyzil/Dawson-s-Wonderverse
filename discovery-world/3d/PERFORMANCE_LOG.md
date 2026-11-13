@@ -4,6 +4,31 @@ Rule: the game must never get slower. Measure before and after every change on i
 **Desktop numbers come from a software-rendered browser and are NOT iPhone numbers.** Only the in-game report from the
 real iPhone (⚙️ → Performance Test → Copy Test Results) counts as an iPhone measurement.
 
+## Build 41 small shadow diagnostic
+
+- Physical Pixel 10 Pro XL: the user reports the full-detail BasicShadowMap
+  trial also resets. The screenshot contains our generic context-loss message;
+  it does not establish a memory shortage. No physical timing was supplied.
+- The new standalone diagnostic fixes its drawing buffer at 384×256 regardless
+  of device pixel density. It has one cube, one floor and one shadow-casting
+  light, without game assets, environment generation, effects or all-world
+  rehearsal. It is approximately 531 KB including the pinned renderer.
+- Desktop Chromium/software rendering verifies actual darker shadow pixels in
+  all three configurations: Basic 512×512, Basic 1536×1536 and PCF 1536×1536.
+  Each comparison finds 141 pixels darkened by more than 20 average RGB levels
+  in a 192×128 readback. The GPU completion fence signals and GL error is zero.
+  This confirms the intended test output, not behavior on the physical Pixel.
+- The normal Android game starts through Play in 46.8 s in one focused desktop
+  run (previous recorded build 39 run: 45.4 s). This variation is not evidence
+  of a phone regression. Comparing the entire generated HTML to the build 40
+  backup proves it differs **only** by the context-loss message: all game
+  rendering, startup work, assets and normal graphics profiles are identical.
+- Focused checks pass for actual shadow pixels, simulated context loss and
+  readable reports, save isolation, the default Android game and quality
+  guards, graphics hub controls, and legacy-to-current offline cache migration
+  including the new diagnostic. The full gameplay smoke suite is still pending;
+  this milestone remains a draft diagnostic in the fork.
+
 ## Build 40 alternate shadow sampling
 
 - Desktop Chromium / software rendering, Android user agent, 844×390 touch

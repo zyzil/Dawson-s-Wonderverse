@@ -6,3 +6,8 @@ const js = out.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 const html = readFileSync('src/index.template.html', 'utf8').replace('/*__CSS__*/', readFileSync('src/style.css', 'utf8')).replace('/*__JS__*/', () => js);
 writeFileSync('index.html', html);
 console.log(`index.html written: ${(html.length / 1024).toFixed(0)} KB`);
+// The grown-up shadow check embeds the same pinned Three.js and works offline.
+const shadow = await build({ entryPoints: ['src/shadow-check.js'], bundle: true, minify: true, format: 'iife', write: false, target: ['safari15', 'chrome100'], legalComments: 'none' });
+const check = readFileSync('src/shadow-check.template.html', 'utf8').replace('/*__JS__*/', () => shadow.outputFiles[0].text.replace(/<\/script/gi, '<\\/script'));
+writeFileSync('shadow-check.html', check);
+console.log(`shadow-check.html written: ${(check.length / 1024).toFixed(0)} KB`);

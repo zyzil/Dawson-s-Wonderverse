@@ -108,7 +108,7 @@ function createRenderer(canvas) {
   }
 }
 const renderer = createRenderer(canvas);
-canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); window.__oops && window.__oops('The device reset the 3D graphics (it may be low on memory). Tap Try again.'); });
+canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); window.__oops && window.__oops('The browser reset the 3D graphics. Tap Try again. If Chrome says graphics are blocked, close Chrome completely and reopen the game.'); });
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.debug.checkShaderErrors = TEST; // (build 24: the shader error check forces the browser to wait for each shader the first time it is used; on only in test mode)
 renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = LIGHT.exposure;

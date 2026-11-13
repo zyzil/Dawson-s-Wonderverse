@@ -4,6 +4,15 @@ This is the full rebuild of Dawson's Discovery World in real 3D. It is a **separ
 
 Play: open `index.html`. It is one self-contained file and works offline. Once merged, it is also on GitHub Pages at `…/discovery-world/3d/`.
 
+## Build 41: isolate the shadow reset
+
+The physical Pixel 10 Pro XL also resets with the basic-shadow game trial.
+[Small shadow check](shadow-check.html?build=41) uses the same pinned renderer
+with only a block, floor and one shadow-casting light. Start with a 512×512 basic
+map, then compare the original 1536×1536 size and filtered sampling separately.
+Copy its report and say whether a shadow is visible. The working game defaults
+are unchanged. The context-loss message no longer guesses a memory cause.
+
 ## Build 40: alternative shadow-sampling test
 
 `?graphics=full-basic-shadows` restores actual shadow maps using BasicShadowMap

@@ -1,9 +1,38 @@
 # Pixel 10 Pro test branch
 
+## Current result and next check (build 41)
+
+The physical Pixel 10 Pro XL reset with the full-detail BasicShadowMap game
+trial too. Both shadow methods share a native depth-texture path. The screenshot
+shows a context-loss notification, and its old memory suggestion was only our
+app's guess; build 41 removes that suggestion. This does not prove a memory
+problem or establish the exact driver operation that failed.
+
+Open the small scene:
+<https://zyzil.github.io/Dawson-s-Wonderverse/discovery-world/3d/shadow-check.html?build=41>.
+
+Look for a rotating pink block and a dark floor shadow. Use **Copy report** and
+paste it into the chat with whether the shadow was visible. The scene uses
+Three.js r187, a 512×512 Basic shadow map and fixed 384×256 drawing buffer,
+without game assets, PMREM, post-processing or whole-world rehearsal. Its
+report includes GPU/browser details and a fence checking GPU completion of the
+first shadow draw. Completion alone does not prove a visible shadow; desktop
+pixel comparisons verify the expected output separately.
+
+If it works, the page offers a 1536×1536 Basic comparison (only size changes),
+then 1536×1536 PCF (only sampling changes). After a graphics reset, force-stop
+Chrome before another check if it reports graphics are blocked.
+
+The report stays on the page until you copy it. This diagnostic does not read
+or write game progress. It is bundled offline and cached separately from the
+game. Normal Android settings stay on the physically confirmed shadow-free
+profile. A game fix still needs the phone's result; the minimal scene isolates
+renderer/driver failures from the larger game's workload.
+
 ## Alternative shadow implementation (build 40)
 
-The Pixel 10 Pro XL can render shadows; failure of the existing shadow path does
-not establish a hardware limit. The installed Three.js r187 implementation uses
+Failure of the existing shadow path does not establish a hardware limit.
+The full-detail alternative below also failed on the physical Pixel. The installed Three.js r187 implementation uses
 hardware depth comparison (`sampler2DShadow`, comparison enabled and linear
 filtering) for PCF shadows. BasicShadowMap instead uses a regular depth sampler,
 nearest filtering and comparison in the fragment shader. This is a different
@@ -165,6 +194,7 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:android
 CHROMIUM_PATH=/usr/bin/chromium npm run test:graphics
 CHROMIUM_PATH=/usr/bin/chromium npm run test:graphics-offline
 CHROMIUM_PATH=/usr/bin/chromium npm run test:shadow-pixels
+CHROMIUM_PATH=/usr/bin/chromium npm run test:shadow-check
 ```
 
 The Android suite checks portrait image pixels, old blank portrait-cache recovery,

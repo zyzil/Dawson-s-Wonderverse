@@ -12,13 +12,16 @@
 <body><main>
 <h1>Restore graphics one at a time</h1>
 <p>Each check starts with the working lighter settings and adds <b>one feature</b>. Play briefly, then use “Graphics checks” at the top of the game to return and record the result.</p>
-<aside><b>New shadow-method test</b>
-<p>The original filtered shadow path failed on the reported Pixel. This test uses basic depth sampling at the same shadow-map resolution, with all other graphics restored. Edges will be sharper; the Pixel result is still unknown.</p>
+<aside><b>Next: a small shadow check</b>
+<p>The Pixel 10 Pro XL reset with both the original filtered shadows and the full-detail basic-shadow trial. Both methods share a depth-texture path. This small scene removes the game's scenery, effects and whole-world startup rendering to narrow down the failure.</p>
+<p><a class="primary" href="shadow-check.html?build=41">Open the small shadow check</a></p>
+<p>Look for a rotating pink block and a dark shadow, then use “Copy report”. The report includes the browser/GPU details and whether the GPU completed its first shadow draw.</p></aside>
+<details><summary>Previous basic-shadow game trials (full-detail trial failed)</summary>
 <p><a id="basicShadows" class="primary" href="./?graphics=full-basic-shadows&amp;trial=1&amp;build=40">Try basic shadows with full detail</a></p>
 <label>Result: <select id="basicShadowResult" aria-label="Basic shadows with full detail result"></select></label>
-<p><a href="./?graphics=safe&amp;restore=shadows&amp;shadow=basic&amp;trial=1&amp;build=40">Test basic shadows alone</a></p></aside>
+<p><a href="./?graphics=safe&amp;restore=shadows&amp;shadow=basic&amp;trial=1&amp;build=40">Test basic shadows alone</a></p></details>
 <a id="next" class="primary" href="./?graphics=safe">Start next check</a>
-<aside><b>Pixel 10 Pro results:</b> the shadow-only trial failed, and full detail without shadow maps works. The normal Android game now uses that working profile.
+<aside><b>Pixel 10 Pro XL results:</b> the shadow-only trial and basic-shadow full-detail trial failed, and full detail without shadow maps works. The normal Android game uses that working profile.
 <p><a id="shadowFree" class="primary" href="./?graphics=full-no-shadows&amp;trial=1&amp;build=38">Try full detail without shadow maps</a></p>
 <p>This is the confirmed working combined profile; the individual lighter checks remain available below.</p>
 <label>Result: <select id="shadowFreeResult" aria-label="Full detail without shadow maps result"></select></label></aside>
@@ -85,7 +88,7 @@ for (const [i, t] of GRAPHICS_TRIALS.entries()) {
 }
 updateNext();
 document.getElementById('copy').onclick = async () => {
-  const text = 'Graphics checks — build 40\nReported Pixel result: original filtered shadow-only trial failed.\nBasic shadows with full detail: ' + results['full-basic-shadows'] + '\nFull detail without shadow maps: ' + results['full-no-shadows'] + '\n' + GRAPHICS_TRIALS.map(t => t.label + ': ' + results[t.key]).join('\n') + '\nBrowser: ' + navigator.userAgent;
+  const text = 'Graphics checks — build 41\nReported Pixel results: original filtered shadow-only and full-detail basic-shadow trials failed; full detail without shadows works.\nRecorded basic shadows with full detail: ' + results['full-basic-shadows'] + '\nFull detail without shadow maps: ' + results['full-no-shadows'] + '\n' + GRAPHICS_TRIALS.map(t => t.label + ': ' + results[t.key]).join('\n') + '\nBrowser: ' + navigator.userAgent;
   const pre = document.getElementById('summary'); pre.textContent = text; pre.hidden = false;
   try { await navigator.clipboard.writeText(text); document.getElementById('notice').textContent = 'Copied. Paste the results into the chat.'; }
   catch { document.getElementById('notice').textContent = 'Copy the results shown below.'; }

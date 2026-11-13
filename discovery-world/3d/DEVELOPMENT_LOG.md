@@ -4,6 +4,29 @@ Completed changes and how each was tested, newest first. Each checkpoint says wh
 browser vs. a real iPhone). The routine and rules are in `CLAUDE.md`; unfinished work is in `NEXT_TASKS.md`; measurements
 are in `PERFORMANCE_LOG.md`.
 
+## Checkpoint: build 41 small physical-device shadow diagnostic
+- **New physical evidence:** the full-detail BasicShadowMap trial also resets
+  the Pixel 10 Pro XL. Its screenshot shows our context-loss handler, not a
+  browser diagnosis of low memory. Basic sampling is not a verified fix.
+- Both installed r187 Basic and PCF still allocate native unsigned-integer depth
+  textures. The game also rehearses wide whole-world shadow views during
+  startup. Neither the shared depth path nor startup workload has been isolated
+  as the cause; don't attribute the reset to memory, hardware limits or PCF alone.
+- Add a self-contained `shadow-check.html` using the same pinned Three.js,
+  one cube, one floor, one shadow-casting light, a fixed 384×256 picture and no
+  game assets, environment generation, effects or whole-world rehearsal.
+  Comparisons change only map size (512 → 1536) then sampling (Basic → PCF).
+- The report includes browser/GPU details, accepted canvas options, allocation
+  size, last submission stage and a GPU fence confirming completion of the first
+  shadow draw. Context loss preserves the report without guessing its cause.
+  Copying is manual; no report is sent automatically and no game storage is used.
+- Keep the physically verified shadow-free Android game unchanged. Correct its
+  misleading memory wording. Preserve pre-change HTML in
+  `../backups/3D_build41_index.html`; cache the new document separately.
+- **Validation:** focused browser checks and measurements recorded in
+  `PERFORMANCE_LOG.md`. Physical small-scene result and full gameplay smoke
+  suite remain pending; keep the fork PR draft.
+
 ## Checkpoint: build 40 alternate shadow implementation
 - **Requested:** make shadows work on the Pixel 10 Pro XL, rather than treating
   shadow rendering as a hardware limitation.
