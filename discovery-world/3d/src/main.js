@@ -8,7 +8,8 @@
 import * as THREE from 'three';
 import { SAFE_GRAPHICS, GRAPHICS, GRAPHICS_TRIALS } from './graphics.js';
 import { PORTRAITS } from './portraits.js';
-import { waitForGpu } from './gpu-work.js';
+import { waitForGpu, makeWarmTarget } from './gpu-work.js';
+import { primeShadowMap } from './shadow-preflight.js';
 
 import { Sound, NOTES } from './audio.js';
 import { CREATURES, makeCreature, makeFluff, toy, starGeometry } from './creatures.js';
@@ -37,14 +38,14 @@ const $ = id => document.getElementById(id);
 const GRAPHICS_CHECK = new URLSearchParams(location.search).get('trial') === '1';
 let graphicsStage = 'Creating renderer', graphicsLost = false;
 let localWarmupPending = GRAPHICS.localShadowWarmup;
-const graphicsReport = { build: 42, profile: GRAPHICS, userAgent: navigator.userAgent };
+const graphicsReport = { build: 43, profile: GRAPHICS, userAgent: navigator.userAgent };
 const graphicsStep = stage => { graphicsStage = stage; };
 // Only explicit trial links show this return control, even if startup fails.
 if (GRAPHICS_CHECK) {
   const link = document.createElement('a'); link.className = 'graphicsTrialBack';
-  link.href = 'graphics-tests.html?build=42';
+  link.href = 'graphics-tests.html?build=43';
   const trialMode = new URLSearchParams(location.search).get('graphics');
-  const trialLabel = trialMode === 'full-basic-shadows' ? 'Basic shadows · ' + (GRAPHICS.localShadowWarmup ? 'local startup' : 'original startup')
+  const trialLabel = trialMode === 'full-basic-shadows' ? 'Basic shadows · ' + (GRAPHICS.shadowPreflight ? 'canvas-first startup' : GRAPHICS.localShadowWarmup ? 'local startup' : 'original startup')
     : trialMode === 'full-no-shadows' ? 'Full detail, no shadow maps'
     : GRAPHICS.restored.map(k => GRAPHICS_TRIALS.find(t => t.key === k).label).join(', ') || 'Working baseline';
   link.textContent = '↩ Graphics checks · ' + trialLabel + (trialMode !== 'full-basic-shadows' && GRAPHICS.shadows && GRAPHICS.shadowType === 'basic' ? ' · basic sampling' : '');
@@ -1102,7 +1103,7 @@ const compileAll = () => {
 function warmGroup(g) { // (build 29) one rehearsal draw of a newly streamed neighbourhood, into the real buffer, before you can see it
   if (localWarmupPending || graphicsLost) return;
   try { const b = new THREE.Box3().setFromObject(g), c = b.getCenter(new THREE.Vector3()), cam = camera.clone(); cam.position.set(c.x, 2.15, CAM_DIST); cam.lookAt(c.x, 1.15, 0); cam.updateMatrixWorld();
-    const prev = renderer.getRenderTarget(), sm = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = false; if (post.enabled && !post.lite) { G.warmRT = G.warmRT || new THREE.WebGLRenderTarget(64, 32, { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(64, 32), depthBuffer: true }); renderer.setRenderTarget(G.warmRT); renderer.render(scene, cam); } renderer.setRenderTarget(prev); renderer.shadowMap.autoUpdate = sm; } catch (e) { }
+    const prev = renderer.getRenderTarget(), sm = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = false; if (post.enabled && !post.lite) { G.warmRT = G.warmRT || makeWarmTarget(true); renderer.setRenderTarget(G.warmRT); renderer.render(scene, cam); } renderer.setRenderTarget(prev); renderer.shadowMap.autoUpdate = sm; } catch (e) { }
 }
 G.warmGroup = warmGroup;
 function compileGroup(g) { const prev = renderer.getRenderTarget(); if (post.enabled) renderer.setRenderTarget(post.target); let r; try { r = renderer.extensions.has('KHR_parallel_shader_compile') ? renderer.compileAsync(g, camera, scene) : Promise.resolve(renderer.compile(g, camera, scene)); } catch (e) { r = Promise.resolve(); } renderer.setRenderTarget(prev); return r; }
@@ -1115,7 +1116,7 @@ scene.traverse(o => { if (o.isLight) o.layers.enable(WARM_LAYER); }); // (lights
 function warmObjects(list) {
   if (localWarmupPending || graphicsLost) return;
   if (!list.length || !(post.enabled && !post.lite)) return;
-  G.warmRT = G.warmRT || new THREE.WebGLRenderTarget(64, 32, { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(64, 32), depthBuffer: true });
+  G.warmRT = G.warmRT || makeWarmTarget(true);
   const prev = renderer.getRenderTarget(), sm = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = false; const V0 = new THREE.Vector3();
   for (const o of list) {
     let root = o; while (root.parent && root.parent !== scene && !root.parent.isScene) root = root.parent;
@@ -1142,7 +1143,7 @@ async function warmAreas() { const warmT0 = performance.now(), local = GRAPHICS.
   // (build 29) rehearse into the SAME picture buffer the game really draws into (4x anti-aliased, with a depth texture,
   // or the lite one). The graphics driver prepares a separate drawing setup for each kind of buffer; rehearsing into a
   // plain small buffer (builds 24-28) left the real setups to be made on first sight: the stall when entering the house.
-  const full = post.enabled && !post.lite, rt = new THREE.WebGLRenderTarget(64, 32, full ? { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(64, 32), depthBuffer: true } : { type: THREE.HalfFloatType }), /* (tiny, but exactly the same kind of buffer: the setups depend on the kind, not the size) */ cam = camera.clone(), shadowAuto = renderer.shadowMap.autoUpdate;
+  const full = post.enabled && !post.lite, rt = makeWarmTarget(full), /* (tiny, but exactly the same kind of buffer: the setups depend on the kind, not the size) */ cam = camera.clone(), shadowAuto = renderer.shadowMap.autoUpdate;
   const sp = sun.position.clone(), st = sun.target.position.clone();
   const shown = [], back = [];
   const metrics = G.shadowWarmup = { local, localPasses: 0, wideShadowPasses: 0, completedBatches: 0 };
@@ -1199,6 +1200,7 @@ async function warmAreas() { const warmT0 = performance.now(), local = GRAPHICS.
   }
 }
 Promise.race([Promise.all([assetsReady, landmarksReady]), new Promise(r => setTimeout(r, 6000))])
+  .then(() => GRAPHICS.shadowPreflight ? primeShadowMap({ renderer, scene, sun, full: post.enabled && !post.lite, report: graphicsReport, step: graphicsStep }) : undefined)
   .then(() => { graphicsStep('Compiling scene materials'); return compileAll(); })
   .then(() => warmAreas()).then(() => { localWarmupPending = false; begin(); }, e => {
     localWarmupPending = false;

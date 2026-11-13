@@ -1,3 +1,12 @@
+import * as THREE from 'three';
+
+// Keep startup checks and all rehearsal draws on the exact same target setup.
+export function makeWarmTarget(full) {
+  return new THREE.WebGLRenderTarget(64, 32, full
+    ? { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(64, 32), depthBuffer: true }
+    : { type: THREE.HalfFloatType });
+}
+
 // Let one submitted batch finish before adding more startup work. No gl.finish
 // or blocking polling: the browser remains responsive while the GPU catches up.
 export function waitForGpu(renderer) {

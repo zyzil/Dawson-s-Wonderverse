@@ -33,7 +33,8 @@ export function getGraphicsProfile(search = location.search, ua = navigator.user
   // The physical Pixel passed Basic at 1536, but the full game's original
   // whole-world warmup still reset. Keep that comparison explicitly available.
   const localShadowWarmup = flags.shadows && shadowType === 'basic' && params.get('warmup') !== 'original';
-  return Object.freeze({ safe, restored: Object.freeze(restored), shadowType, localShadowWarmup, ...flags });
+  const shadowPreflight = localShadowWarmup && params.get('preflight') === '1';
+  return Object.freeze({ safe, restored: Object.freeze(restored), shadowType, localShadowWarmup, shadowPreflight, ...flags });
 }
 
 export const GRAPHICS = getGraphicsProfile();

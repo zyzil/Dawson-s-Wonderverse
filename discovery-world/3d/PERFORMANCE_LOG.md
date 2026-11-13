@@ -4,6 +4,40 @@ Rule: the game must never get slower. Measure before and after every change on i
 **Desktop numbers come from a software-rendered browser and are NOT iPhone numbers.** Only the in-game report from the
 real iPhone (⚙️ → Performance Test → Copy Test Results) counts as an iPhone measurement.
 
+## Build 43 canvas-first shadow initialization
+
+- Physical build 42 report: context loss on the first local view (5, 0), one
+  attempted pass, zero completed batches, AA=true and high-performance canvas
+  preference. Pacing/bounding the startup work was not a sufficient fix.
+- Add two simple fenced draws only to the explicit `preflight=1` Basic trial:
+  initialize the actual sun's map on the game canvas, then exercise the same
+  two meshes in the exact HDR/four-sample/depth-texture warmup target. Keep the
+  map for gameplay, without changing quality, effects or antialiasing.
+- Focused desktop/software-rendered full-game run: 44.2 s through Play at
+  844×390, device scale 2; build 42's comparable focused run was 43.9 s (its
+  other recorded run was 46.6 s). These single-run timings do not establish a
+  phone speed change. The normal Android game reaches Play in 38.9 s (previous
+  focused run 39.1 s). No new per-frame work is introduced by the trial.
+- Actual draw instrumentation verifies the first map is allocated on the
+  canvas, then reused in a 64×32 HalfFloat target with samples=4 and a depth
+  texture. Both GPU fences signal, both GL error checks return zero, map size
+  stays 1536×1536 and its compare function is null. All 16 subsequent local
+  startup batches also complete; no wide shadow pass runs. All seven graphics
+  features, nearest depth sampling and plain SAMPLER_2D shadow uniforms remain
+  active. The screenshot shows real creature/scenery shadows.
+- Small actual-renderer checks exercise both full and light warmup targets and
+  simulated loss during the second draw. Light parents/positions, render target
+  and shadow update flags are restored, temporary resources are disposed and
+  the same shadow map is retained. The failed probe remains incomplete in the
+  report. Full-game copied reports, graphics controls, saves/portraits/quality
+  guards and offline migration pass their focused checks.
+- Normal profiles do not execute the extra draws. Their shared target factory
+  preserves the exact options formerly repeated at all three warmup call sites.
+  Scene warmup coverage is retained; build 42's five-view shader coverage check
+  found zero new programs on first entry. Physical canvas-first validation,
+  longer performance checks and the full gameplay suite remain pending. Keep
+  the fork PR draft and the normal Android shadow-free configuration.
+
 ## Build 42 bounded Basic shadow startup
 
 - **Physical evidence:** Basic shadows at 512 and 1536 work in the small scene

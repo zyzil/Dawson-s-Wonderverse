@@ -4,6 +4,35 @@ Completed changes and how each was tested, newest first. Each checkpoint says wh
 browser vs. a real iPhone). The routine and rules are in `CLAUDE.md`; unfinished work is in `NEXT_TASKS.md`; measurements
 are in `PERFORMANCE_LOG.md`.
 
+## Checkpoint: build 43 canvas-first shadow initialization
+- **New physical evidence:** build 42 resets at `Warming local view at 5, 0`.
+  Report: Basic sampling, AA=true, high-performance preference, one local pass
+  attempted and zero completed batches. No wide passes ran. GPU pacing and
+  removing the wide shadow volumes are not a sufficient fix.
+- The working small scene first allocates/draws its Basic map on the canvas;
+  the game first enters a 64×32 HalfFloat, four-sample target with a depth
+  texture. Canvas attributes and world materials/complexity also differ, so
+  the exact failing condition is still unproved.
+- Add explicit `preflight=1` to the Basic/local trial. Drain earlier queued
+  startup work, move the actual sun into a temporary two-mesh scene, draw on
+  the actual game canvas, then draw in the exact warmup target. Fence each
+  draw and retain the same sun.shadow.map for the game. Compile/warm the full
+  scene afterward. This tests initialization order and records which simple
+  stages completed without changing quality or silently lowering canvas options.
+- Share the unchanged target constructor between the checks and the existing
+  three warmup call sites, preserving their original buffer options. Restore
+  light parents/positions, render target and shadow update flags in finally;
+  dispose the temporary meshes/material/target, retaining only the shadow map.
+- The report contains per-probe framebuffer settings, completion flags, GL
+  errors and map size/comparison. The hub records this trial separately. The
+  previous no-preflight comparison remains available. Normal Android retains
+  the confirmed shadow-free profile, and original iPhone defaults remain.
+- Preserve pre-change HTML in `../backups/3D_build43_index.html`.
+- **Validation:** actual map reuse, framebuffer draws, cleanup on context loss,
+  full-game configuration and focused checks are recorded in PERFORMANCE_LOG.md.
+  Physical canvas-first behavior and the full gameplay suite remain pending;
+  keep the fork PR draft and do not claim a confirmed GPU driver root cause.
+
 ## Checkpoint: build 42 bounded Basic shadow startup
 - **Physical evidence:** the Pixel 10 Pro XL draws the minimal scene with Basic
   at 512×512 and 1536×1536. PCF at 1536 resets before its first shadow draw's

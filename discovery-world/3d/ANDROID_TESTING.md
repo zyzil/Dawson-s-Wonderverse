@@ -1,5 +1,32 @@
 # Pixel 10 Pro test branch
 
+## Current failure and targeted trial (build 43)
+
+The physical build 42 Basic/local-startup trial **also failed**, at the first
+local view (5, 0), before any batch's GPU completion fence signaled. The accepted
+canvas had antialiasing enabled and the high-performance preference. Wide shadow
+volumes had not run; avoiding them did not solve the reset.
+
+The game first allocates/draws its shadow map while inside an HDR four-sample
+buffer with a depth texture. The successful small check starts on the canvas.
+Build 43 tests that initialization order and narrows the remaining differences:
+
+<https://zyzil.github.io/Dawson-s-Wonderverse/discovery-world/3d/?graphics=full-basic-shadows&preflight=1&trial=1&build=43>.
+
+It uses the game's actual canvas request and actual sun/map. First drain prior
+GPU work, draw two simple meshes to the canvas, then to the same 64×32 HDR/MSAA/
+depth target used by startup. Wait for GPU completion after each draw and keep
+that map for the full game. The scene, resolution, effects and antialiasing are
+preserved. This is an unconfirmed workaround, not a claim of a fixed driver bug.
+
+If it resets, use **Copy graphics report**. `preflight.probes` shows whether
+simple canvas shadows and simple offscreen shadows completed before the full
+world draw. The report's stage is the last submitted work, not an asserted GPU
+instruction. Force-stop Chrome first if a prior reset left graphics blocked.
+
+The earlier comparison omits `preflight=1`. Normal Android settings stay on the
+confirmed shadow-free profile. All reports are manual; game saves are untouched.
+
 ## Current phone evidence and game trial (build 42)
 
 The Pixel 10 Pro XL draws the small scene with Basic shadows at **both 512 and
@@ -224,6 +251,7 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:graphics-offline
 CHROMIUM_PATH=/usr/bin/chromium npm run test:shadow-pixels
 CHROMIUM_PATH=/usr/bin/chromium npm run test:shadow-check
 CHROMIUM_PATH=/usr/bin/chromium npm run test:gpu-work
+CHROMIUM_PATH=/usr/bin/chromium npm run test:shadow-preflight
 ```
 
 The Android suite checks portrait image pixels, old blank portrait-cache recovery,

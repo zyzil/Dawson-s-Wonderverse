@@ -4,12 +4,13 @@ Prioritized unfinished work, highest first. Take the top item that can be done w
 remove it here and record it in `DEVELOPMENT_LOG.md`. Add new findings (bugs, ideas, measurements that look wrong) as you go.
 
 ## Waiting for the user
-- **Pixel 10 Pro XL bounded Basic game trial:** minimal Basic shadows work at
-  512 and 1536, while minimal filtered PCF at 1536 resets. The original Basic
-  full game also reset. Try build 42 `?graphics=full-basic-shadows&trial=1`:
-  the same full detail and map size with local, GPU-paced startup shadow work.
-  If it resets, use Copy graphics report. Keep the verified shadow-free default
-  until physical confirmation; don't claim PCF alone explains the full game.
+- **Pixel 10 Pro XL canvas-first trial:** build 42 reset on its first local
+  view, before any completed GPU batch. Try build 43
+  `?graphics=full-basic-shadows&preflight=1&trial=1`. It initializes the real
+  shadow map using simple meshes on the game canvas, checks the same meshes
+  in the actual HDR startup buffer, and retains the map for gameplay. Copy the
+  failure report if it resets: the completed probe list narrows the condition.
+  Normal Android must stay on the verified shadow-free profile until confirmed.
 - **Longer Pixel play session:** full detail without shadow maps is physically
   confirmed working and is now the normal Android profile. Check a longer play
   session and offline reopening when convenient. The precise failing GPU

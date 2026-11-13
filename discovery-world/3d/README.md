@@ -4,6 +4,16 @@ This is the full rebuild of Dawson's Discovery World in real 3D. It is a **separ
 
 Play: open `index.html`. It is one self-contained file and works offline. Once merged, it is also on GitHub Pages at `…/discovery-world/3d/`.
 
+## Build 43: initialize shadows before the HDR startup target
+
+Build 42 also reset on the physical Pixel, on its first local view with zero
+completed batches. `?graphics=full-basic-shadows&preflight=1` first draws a simple
+shadow scene on the game's canvas, then in its exact HDR/MSAA/depth startup
+buffer. Each draw waits for GPU completion. The game keeps the initialized
+1536×1536 shadow map, full detail and antialiasing. This tests an initialization
+order workaround; it is not yet a verified phone fix. A failure report includes
+which simple draws completed. Normal game profiles are unchanged.
+
 ## Build 42: Basic shadows with bounded startup work
 
 The physical Pixel 10 Pro XL draws the small scene with Basic shadow maps at
