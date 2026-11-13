@@ -6,7 +6,7 @@
 // No timers, no losing, no reading needed. Works offline (one HTML file).
 // ===================================================================
 import * as THREE from 'three';
-import { SAFE_GRAPHICS } from './graphics.js';
+import { SAFE_GRAPHICS, GRAPHICS, GRAPHICS_TRIALS } from './graphics.js';
 import { PORTRAITS } from './portraits.js';
 
 import { Sound, NOTES } from './audio.js';
@@ -33,6 +33,14 @@ import { SCULPT_STATS } from './sculpt.js';
 import { FUR } from './fur.js';
 
 const $ = id => document.getElementById(id);
+// Only explicit trial links show this return control, even if startup fails.
+if (new URLSearchParams(location.search).get('trial') === '1') {
+  const link = document.createElement('a'); link.className = 'graphicsTrialBack';
+  link.href = 'graphics-tests.html?build=37';
+  link.textContent = '↩ Graphics checks · ' + (GRAPHICS.restored.map(k => GRAPHICS_TRIALS.find(t => t.key === k).label).join(', ') || 'Working baseline');
+  link.style.cssText = 'position:fixed;top:4px;left:50%;transform:translateX(-50%);z-index:1000;padding:8px 14px;border-radius:20px;background:#fff;color:#4b2a8a;font:700 13px system-ui;max-width:90vw;text-align:center;text-decoration:none;box-shadow:0 2px 12px #0005';
+  document.body.appendChild(link);
+}
 // Pre-rendered pictures are available on the first visit, including devices
 // whose canvas readback returned blank pictures in the old portrait cache.
 document.querySelectorAll('[data-c]').forEach(el => {
@@ -60,7 +68,12 @@ function createRenderer(canvas) {
   ];
   // A separate test URL can skip the original request if it crashes a driver
   // instead of returning a normal context-creation error.
-  const attempts = SAFE_GRAPHICS || new URLSearchParams(location.search).get('graphics') === 'compatible'
+  const canvasTrial = GRAPHICS.restored.includes('antialias') || GRAPHICS.restored.includes('power');
+  // A canvas trial must fail visibly if its request is rejected. Silently
+  // falling back would make an unsupported feature appear to have passed.
+  const attempts = canvasTrial
+    ? [{ antialias: GRAPHICS.antialias, powerPreference: GRAPHICS.power ? 'high-performance' : 'default' }]
+    : SAFE_GRAPHICS || new URLSearchParams(location.search).get('graphics') === 'compatible'
     ? compatible : [{ antialias: true, powerPreference: 'high-performance' }, ...compatible];
   const failures = [];
   let detail = '';
@@ -838,11 +851,11 @@ document.querySelectorAll('.creatureChoice').forEach(b => b.addEventListener('po
 document.querySelectorAll('.introPick').forEach(b => b.addEventListener('click', () => { document.querySelectorAll('.introPick').forEach(x => x.classList.toggle('picked', x === b)); setCreature(b.dataset.c); }));
 
 // ---------------- resize + adaptive quality ----------------
-let quality = TEST || SAFE_GRAPHICS ? .4 : MOBILE ? .75 : 1, slow = 0, ema = 1 / 60;
-if (TEST || SAFE_GRAPHICS) renderer.shadowMap.enabled = false;
+let quality = TEST || !GRAPHICS.resolution ? .4 : MOBILE ? .75 : 1, slow = 0, ema = 1 / 60;
+if (TEST || !GRAPHICS.shadows) renderer.shadowMap.enabled = false;
 // soft "ambient occlusion" shadows (post.js); off in the light test mode and with ?nopost
 const post = makePost(renderer, scene, camera, {
-  mobile: MOBILE, disabled: TEST || SAFE_GRAPHICS || /[?&]nopost/.test(location.search),
+  mobile: MOBILE, disabled: TEST || !GRAPHICS.effects || /[?&]nopost/.test(location.search),
 });
 // (build 34b) the picture is sized from the canvas's REAL size on screen. On iPhone (especially the Home Screen app),
 // innerWidth/innerHeight can still hold the old, upright size when the phone turns, which drew a tall picture and
@@ -1116,7 +1129,7 @@ Promise.race([Promise.all([assetsReady, landmarksReady]), new Promise(r => setTi
 setTimeout(begin, 15000);
 
 // debug/test hook (used by the automated tests only)
-window.__DDW3 = { THREE,
+window.__DDW3 = { THREE, graphics: GRAPHICS,
   player, world, keys, fluffs, G, camera, Sound, save, IN, renderer, FR: THREE.Frustum, LOWSTATS, SCULPT_STATS,
   teleport(x, y = 0) { player.ride = null; player.stair = null; player.layer = x >= 2000 ? 'castle' : x >= 1000 ? 'in' : ''; player.x = x; player.y = y; player.vx = player.vy = 0; player.grounded = y === 0; snapCamera(); },
   toScreen(x, y, z = 0) { V.set(x, y, z).project(camera); const r = canvas.getBoundingClientRect(); return { x: (V.x + 1) / 2 * r.width + r.left, y: (1 - V.y) / 2 * r.height + r.top }; },

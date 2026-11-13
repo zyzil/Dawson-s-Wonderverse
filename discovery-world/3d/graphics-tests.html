@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#4b2a8a">
+<title>Dawson's World — graphics checks</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f6f0ff;color:#34204f;font:16px/1.5 system-ui,sans-serif}main{max-width:740px;margin:auto;padding:24px 18px 48px}h1{font-size:28px;line-height:1.15}p{margin:12px 0}a{color:#6033a5}.primary,button{display:inline-block;border:0;border-radius:12px;padding:12px 18px;background:#6537aa;color:#fff;font:700 16px system-ui;text-decoration:none;cursor:pointer}.primary{margin:8px 0}button.secondary{background:#e5d8f9;color:#492879}.check{padding:18px;margin:12px 0;border-radius:16px;background:#fff;box-shadow:0 3px 14px #4928790b}.check h2{font-size:19px;margin:0}.check p{font-size:14px;margin:6px 0 12px;color:#69577f}.actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.actions a{font-weight:700;padding:8px 0;min-width:80px}select{padding:9px;border:1px solid #d2c0eb;border-radius:8px;background:#fff;color:#34204f;font:16px system-ui}aside{padding:14px;border-radius:12px;background:#eee2ff}#last{font-weight:700}pre{white-space:pre-wrap;font-size:13px;background:#fff;padding:14px;border-radius:12px}[hidden]{display:none!important}
+</style>
+</head>
+<body><main>
+<h1>Restore graphics one at a time</h1>
+<p>Each check starts with the working lighter settings and adds <b>one feature</b>. Play briefly, then use “Graphics checks” at the top of the game to return and record the result.</p>
+<a id="next" class="primary" href="./?graphics=safe">Start next check</a>
+<p id="last" hidden></p>
+<aside>If Chrome says graphics were blocked, force-stop Chrome and reopen this page before another check. <a href="./?graphics=safe">Return to the working game</a>.</aside>
+<div id="checks"></div>
+<button id="copy" class="secondary" type="button">Copy results</button>
+<p id="notice" role="status"></p>
+<pre id="summary" hidden></pre>
+<noscript>Enable JavaScript to use the graphics checks.</noscript>
+</main>
+<script type="module">
+import { GRAPHICS_TRIALS } from './src/graphics.js?build=37';
+const KEY = 'ddw3-graphics-checks-v1', PENDING = 'ddw3-graphics-check-pending';
+const states = ['Not tested', 'Worked', 'Slow', 'Failed'];
+let results = {}, pending = '';
+try { results = JSON.parse(localStorage.getItem(KEY) || '{}'); pending = sessionStorage.getItem(PENDING) || ''; } catch {}
+if (!results || typeof results !== 'object' || Array.isArray(results)) results = {};
+results = Object.fromEntries(GRAPHICS_TRIALS.map(t => [t.key, states.includes(results[t.key]) ? results[t.key] : 'Not tested']));
+function url(key) {
+  const u = new URL('./', location.href);
+  u.search = new URLSearchParams({ graphics: 'safe', restore: key, trial: '1', build: '37' });
+  return u.href;
+}
+function start(key) { try { sessionStorage.setItem(PENDING, key); } catch {} }
+function updateNext() {
+  const t = GRAPHICS_TRIALS.find(t => results[t.key] === 'Not tested');
+  const a = document.getElementById('next'); a.hidden = !t;
+  if (t) { a.href = url(t.key); a.textContent = 'Next: ' + t.label; a.onclick = () => start(t.key); }
+}
+const last = GRAPHICS_TRIALS.find(t => t.key === pending);
+if (last) { const p = document.getElementById('last'); p.hidden = false; p.textContent = 'Last check: ' + last.label + '. Record its result below.'; }
+for (const [i, t] of GRAPHICS_TRIALS.entries()) {
+  const card = document.createElement('section'); card.className = 'check'; card.dataset.feature = t.key;
+  const h = document.createElement('h2'); h.textContent = (i + 1) + '. ' + t.label;
+  const p = document.createElement('p'); p.textContent = t.detail;
+  const actions = document.createElement('div'); actions.className = 'actions';
+  const a = document.createElement('a'); a.href = url(t.key); a.textContent = 'Try this'; a.onclick = () => start(t.key);
+  const label = document.createElement('label'); label.textContent = 'Result: ';
+  const select = document.createElement('select'); select.setAttribute('aria-label', t.label + ' result');
+  for (const state of states) { const o = document.createElement('option'); o.value = o.textContent = state; select.appendChild(o); }
+  select.value = results[t.key];
+  select.onchange = () => {
+    results[t.key] = select.value;
+    try { localStorage.setItem(KEY, JSON.stringify(results)); } catch { document.getElementById('notice').textContent = 'Results could not be saved. You can still copy them.'; }
+    updateNext();
+  };
+  label.appendChild(select); actions.append(a, label); card.append(h, p, actions); document.getElementById('checks').appendChild(card);
+}
+updateNext();
+document.getElementById('copy').onclick = async () => {
+  const text = 'Graphics checks — build 37\n' + GRAPHICS_TRIALS.map(t => t.label + ': ' + results[t.key]).join('\n') + '\nBrowser: ' + navigator.userAgent;
+  const pre = document.getElementById('summary'); pre.textContent = text; pre.hidden = false;
+  try { await navigator.clipboard.writeText(text); document.getElementById('notice').textContent = 'Copied. Paste the results into the chat.'; }
+  catch { document.getElementById('notice').textContent = 'Copy the results shown below.'; }
+};
+</script>
+</body></html>

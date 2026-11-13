@@ -13,7 +13,7 @@ async function main() {
   const to = source.indexOf('const renderer = createRenderer(canvas);', from);
   assert(from >= 0 && to > from, 'find the real startup helper');
   const bundle = await build({
-    stdin: { contents: "import * as THREE from 'three';\nimport { SAFE_GRAPHICS } from './src/graphics.js';\n" + source.slice(from, to) +
+    stdin: { contents: "import * as THREE from 'three';\nimport { SAFE_GRAPHICS, GRAPHICS } from './src/graphics.js';\n" + source.slice(from, to) +
       '\nwindow.createRenderer = createRenderer; window.THREE = THREE;', resolveDir: ROOT },
     bundle: true, minify: true, write: false, format: 'iife',
   });

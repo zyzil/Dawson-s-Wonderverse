@@ -6,4 +6,26 @@ export function useSafeGraphics(search = location.search, ua = navigator.userAge
   if (requested === 'full') return false;
   return requested === 'safe' || /Android/i.test(ua);
 }
-export const SAFE_GRAPHICS = useSafeGraphics();
+
+export const GRAPHICS_TRIALS = Object.freeze([
+  { key: 'resolution', label: 'Sharper picture', detail: 'Restore the original picture resolution.' },
+  { key: 'shadows', label: 'Shadows', detail: 'Restore real-time shadow-map drawing.' },
+  { key: 'scenery', label: 'Detailed scenery', detail: 'Restore the detailed trees, landmarks and textures.' },
+  { key: 'fur', label: 'Plush fur', detail: 'Restore the extra fur layers on creatures.' },
+  { key: 'effects', label: 'Glow and effects', detail: 'Restore the original post-processing pipeline and its antialiasing buffer.' },
+  { key: 'antialias', label: 'Smooth canvas edges', detail: 'Restore canvas antialiasing, with post-processing still off.' },
+  { key: 'power', label: 'Graphics preference', detail: 'Restore the high-performance graphics request.' },
+]);
+
+export function getGraphicsProfile(search = location.search, ua = navigator.userAgent) {
+  const safe = useSafeGraphics(search, ua), params = new URLSearchParams(search);
+  const requested = new Set((params.get('restore') || '').split(','));
+  // Restore requests always start from the safe baseline and are limited to
+  // named features. They never change the default profile or saved game.
+  const restored = safe ? GRAPHICS_TRIALS.filter(t => requested.has(t.key)).map(t => t.key) : [];
+  const flags = Object.fromEntries(GRAPHICS_TRIALS.map(t => [t.key, !safe || restored.includes(t.key)]));
+  return Object.freeze({ safe, restored: Object.freeze(restored), ...flags });
+}
+
+export const GRAPHICS = getGraphicsProfile();
+export const SAFE_GRAPHICS = GRAPHICS.safe;

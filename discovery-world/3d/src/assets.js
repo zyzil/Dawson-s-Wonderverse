@@ -10,7 +10,7 @@
 // In the light test mode (?test) the old lightweight procedural versions are used.
 // ===================================================================
 import * as THREE from 'three';
-import { SAFE_GRAPHICS } from './graphics.js';
+import { GRAPHICS } from './graphics.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { MeshoptSimplifier } from 'meshoptimizer/simplifier';
@@ -32,7 +32,7 @@ import carSpinAO from './assets/carousel_spin_ao.jpg';
 import brNrm from './assets/brick_nrm.jpg';
 import brRough from './assets/brick_rough.jpg';
 
-export const USE_ASSETS = !SAFE_GRAPHICS && (typeof location === 'undefined' || !/[?&](test|noassets)/.test(location.search));
+export const USE_ASSETS = GRAPHICS.scenery && (typeof location === 'undefined' || !/[?&](test|noassets)/.test(location.search));
 export const windTime = { value: 0 };
 
 // grass/leaves: light both sides of a leaf the same (no dark flipped backs)

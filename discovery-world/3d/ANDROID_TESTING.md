@@ -12,6 +12,38 @@ test mode: speech, learning games, normal saves and gameplay remain active.
 Character pictures are rendered from the game's models ahead of time and embedded
 in the offline HTML; the phone does not have to draw or cache them itself.
 
+## Restore individual features (build 37)
+
+Open the [graphics checks page](https://zyzil.github.io/Dawson-s-Wonderverse/discovery-world/3d/graphics-tests.html?build=37).
+It starts with resolution, then offers shadows, detailed scenery, fur, effects,
+canvas antialiasing and the high-performance graphics request. Each link starts
+from the working safe profile and restores exactly one named category. None of
+the trial results automatically changes the normal game's settings.
+
+Walk around in each trial, use the “Graphics checks” link at the top to return,
+and record Worked, Slow or Failed. The page remembers these diagnostic results
+separately from the saved game. “Copy results” prepares text for pasting into the
+chat; it does not send anything automatically. If Chrome blocks WebGL again,
+force-stop Chrome and reopen the checks page before another trial.
+
+The direct first check is:
+<https://zyzil.github.io/Dawson-s-Wonderverse/discovery-world/3d/?graphics=safe&restore=resolution&trial=1&build=37>.
+Other named checks use `restore=shadows`, `scenery`, `fur`, `effects`, `antialias`
+or `power`. Effects include the original HDR post-processing pipeline and its
+4× antialiasing buffer. Canvas antialiasing is a separate check. In the two
+canvas-request checks, rejected settings fail visibly rather than falling back
+and making the feature appear supported. The browser's accepted preference is
+a hint, not a measurement of which hardware the browser selected.
+
+Passing separately does not establish that every combination will work. Once
+the physical Pixel results identify working features, test the chosen combination
+before changing the normal Android default. All checks use normal gameplay,
+speech and saves; they do not use automated test mode.
+
+The service worker caches the checks page separately so visiting it cannot
+replace the offline game. The checks page and graphics-profile module are also
+available offline after the new service worker finishes installing.
+
 ## Open the test build
 
 In the fork's **Settings → Pages**, select **Deploy from a branch**, then
@@ -69,6 +101,8 @@ existing smoke test. Set `CHROMIUM_PATH` if using an installed Chromium binary.
 ```sh
 CHROMIUM_PATH=/usr/bin/chromium npm run test:renderer
 CHROMIUM_PATH=/usr/bin/chromium npm run test:android
+CHROMIUM_PATH=/usr/bin/chromium npm run test:graphics
+CHROMIUM_PATH=/usr/bin/chromium npm run test:graphics-offline
 ```
 
 The Android suite checks portrait image pixels, old blank portrait-cache recovery,

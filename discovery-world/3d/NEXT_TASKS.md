@@ -4,6 +4,10 @@ Prioritized unfinished work, highest first. Take the top item that can be done w
 remove it here and record it in `DEVELOPMENT_LOG.md`. Add new findings (bugs, ideas, measurements that look wrong) as you go.
 
 ## Waiting for the user
+- **Individual graphics trials:** the updated Android build works on the Pixel.
+  Start build 37's graphics checks with resolution, then record the other
+  individual results. Keep the normal Android default on the working profile
+  until the physical results identify features and combinations to restore.
 - **Pixel 10 Pro:** verify build 36 at the fork's normal URL: automatic Android
   rendering, visible character pictures, speech, walking and reopening saved
   progress. The physical phone already runs `?test&graphics=compatible`; the

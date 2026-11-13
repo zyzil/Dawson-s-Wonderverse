@@ -4,6 +4,30 @@ Completed changes and how each was tested, newest first. Each checkpoint says wh
 browser vs. a real iPhone). The routine and rules are in `CLAUDE.md`; unfinished work is in `NEXT_TASKS.md`; measurements
 are in `PERFORMANCE_LOG.md`.
 
+## Checkpoint: build 37 individual graphics trials
+- **Requested:** restore the graphics features individually after the physical
+  Pixel successfully ran build 36's lighter rendering profile.
+- **Implementation:** independent restoration flags for resolution, shadows,
+  scenery, fur, post-processing, canvas antialiasing and graphics preference.
+  Trial links explicitly use the safe baseline and retain normal gameplay and
+  speech. Automatic quality cannot change the other features during a trial.
+  Canvas-request trials fail visibly if rejected, with no silent fallback.
+- **Test page:** `graphics-tests.html` offers each trial, records local
+  Worked/Slow/Failed results, and prepares a report for manual copying. A return
+  link appears only in explicit trial URLs, including on the error screen.
+  Normal game defaults and the game-save key are unchanged. Pre-change HTML is
+  preserved in `../backups/3D_build37_index.html`.
+- **Offline helper:** cache game and diagnostic documents separately; the old
+  navigate handler would have overwritten the offline game with the test page.
+  Cache the test page/profile module and retain unrelated application caches.
+- **Verified (desktop, software rendering):** the baseline and all seven real-game
+  trials start with exactly the selected graphics category active, visible
+  portraits and no uncaught JavaScript errors. The profile matrix, test-page
+  navigation/results/export, save isolation and explicit rejection of canvas
+  requests pass. The offline navigation test preserves the game, offline checks
+  and unrelated application caches.
+- Physical feature-by-feature results and combination testing are pending.
+
 ## Checkpoint: build 36 Android profile and bundled portraits
 - **Physical Pixel report:** after a Chrome restart, the light
   `?test&graphics=compatible` build opens and gameplay works, but the character

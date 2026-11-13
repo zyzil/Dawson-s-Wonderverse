@@ -4,6 +4,15 @@ This is the full rebuild of Dawson's Discovery World in real 3D. It is a **separ
 
 Play: open `index.html`. It is one self-contained file and works offline. Once merged, it is also on GitHub Pages at `…/discovery-world/3d/`.
 
+## Build 37 test branch: restore individual graphics features
+
+Use [graphics checks](graphics-tests.html?build=37) to try resolution, shadows,
+scenery, fur, effects, canvas antialiasing and graphics preference individually.
+Every check starts with the working lighter profile and restores one category;
+the regular game keeps its working default. Record results on the checks page
+and copy them for review before testing combinations. See
+[Android testing and publishing](ANDROID_TESTING.md).
+
 ## Build 36 test branch: Android rendering and character pictures
 
 Android now starts with the lighter rendering path that opened on the physical

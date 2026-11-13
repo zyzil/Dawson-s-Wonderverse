@@ -4,6 +4,28 @@ Rule: the game must never get slower. Measure before and after every change on i
 **Desktop numbers come from a software-rendered browser and are NOT iPhone numbers.** Only the in-game report from the
 real iPhone (⚙️ → Performance Test → Copy Test Results) counts as an iPhone measurement.
 
+## Build 37 independent graphics checks
+
+Desktop Chromium / software rendering, Android user agent, 844×390 touch
+viewport at device scale factor 2. Startup through tapping Play, single runs:
+
+| Trial | Time | Restored category |
+|---|---:|---|
+| Working baseline | 25.4 s | None |
+| Resolution | 26.2 s | Pixel ratio 1.5 instead of 0.8 |
+| Shadows | 26.5 s | Shadow-map drawing |
+| Scenery | 28.4 s | Detailed models/textures |
+| Fur | 38.3 s | Shell-fur layers |
+| Effects | 42.9 s | HDR post-processing / offscreen antialiasing |
+| Canvas antialiasing | 26.6 s | Canvas antialiasing |
+| Graphics preference | 28.2 s | High-performance request |
+
+These are software-rendered startup timings with shader-cache variability, not
+physical Pixel performance measurements. Heavier trial workloads are explicitly
+requested experiments; normal defaults are unchanged. The tests verify that
+every other category stays off during each isolated trial. Physical results and
+tested combinations are needed before restoring default Android features.
+
 ## Build 36 Android rendering profile
 
 - Physical Pixel 10 Pro: the previous `?test&graphics=compatible` build opens
