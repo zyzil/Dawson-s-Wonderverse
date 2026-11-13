@@ -4,6 +4,17 @@ This is the full rebuild of Dawson's Discovery World in real 3D. It is a **separ
 
 Play: open `index.html`. It is one self-contained file and works offline. Once merged, it is also on GitHub Pages at `…/discovery-world/3d/`.
 
+## Build 44: separate actual world casting and surface shading
+
+The physical Pixel passed both build 43 simple draws, including the exact HDR
+startup buffer, then reset on the first actual world view. The explicit
+`?graphics=full-basic-shadows&preflight=1&worldprobe=1` run now checks real world
+caster groups without drawing world surfaces, then freezes the complete shadow
+map and tests receiving by surface group. Each step waits for GPU completion.
+A copied failure report lists completed steps and actual draw counts. Temporary
+flags and light layers restore before normal warmup/play. This is a diagnostic,
+not a confirmed phone fix; normal profiles stay unchanged.
+
 ## Build 43: initialize shadows before the HDR startup target
 
 Build 42 also reset on the physical Pixel, on its first local view with zero

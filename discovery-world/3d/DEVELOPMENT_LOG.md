@@ -4,6 +4,41 @@ Completed changes and how each was tested, newest first. Each checkpoint says wh
 browser vs. a real iPhone). The routine and rules are in `CLAUDE.md`; unfinished work is in `NEXT_TASKS.md`; measurements
 are in `PERFORMANCE_LOG.md`.
 
+## Checkpoint: build 44 automatic world shadow checks
+- **New physical evidence:** build 43 passed both simple preflight probes on
+  the Pixel, with zero GL errors, retained 1536×1536 Basic map, game AA=true
+  canvas and exact 64×32 HalfFloat/four-sample/depth startup buffer. It then
+  reset at the first real local view (5, 0), before a world batch completed.
+  Initialization order is not a sufficient fix; the buffer alone is not enough
+  to reproduce this Basic failure.
+- Add explicit `worldprobe=1` to the Basic/preflight trial. At that same first
+  local view, separate world shadow depth casting from world color rendering.
+  r187 honors the existing sun.shadow.camera layer 1 independently of main
+  camera layers, so an unused camera layer can gather the same lights and cast
+  actual world geometry with zero world color draws. No library patch or
+  replacement surface material is used.
+- Test static, instanced and skinned casters, splitting cutout/displaced meshes
+  where present; then test all casters. Freeze the complete depth map, draw the
+  original surface shaders with receiving off, enable receiving per standard,
+  physical, custom, instanced, skinned and fur group, then all surfaces. Finally
+  submit the original combined cast/color draw. Fence every submitted batch.
+- Reports record per-step completion, enabled counts, actual shadow/color draws
+  and GL errors. Actual receiving draws are counted separately from all color
+  draws; a group with zero draws does not establish support. Refresh
+  snapshots before each step to include newly loaded meshes. Restore cast and
+  receive flags, callbacks, light layer masks, render target, update flags and
+  info settings in finally, including after loss. Keep light.castShadow and
+  shader defines unchanged; receiveShadow is a runtime uniform.
+- Trial startup errors now offer the same copyable report as context loss. The
+  hub stores these results separately. Preserve pre-change HTML in
+  `../backups/3D_build44_index.html`. Normal Android remains shadow-free; normal
+  iPhone and all other explicit trial profiles retain their settings.
+- **Validation:** small actual-renderer tests prove zero world color draws in
+  depth steps, zero depth draws in frozen-map surface steps, identical final
+  rendered pixels after restoration, and cleanup during loss. Full-game focused
+  validation and measurements are recorded in PERFORMANCE_LOG.md. Physical
+  world-check results and the full gameplay suite remain pending; keep draft.
+
 ## Checkpoint: build 43 canvas-first shadow initialization
 - **New physical evidence:** build 42 resets at `Warming local view at 5, 0`.
   Report: Basic sampling, AA=true, high-performance preference, one local pass

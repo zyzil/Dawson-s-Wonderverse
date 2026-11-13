@@ -4,13 +4,12 @@ Prioritized unfinished work, highest first. Take the top item that can be done w
 remove it here and record it in `DEVELOPMENT_LOG.md`. Add new findings (bugs, ideas, measurements that look wrong) as you go.
 
 ## Waiting for the user
-- **Pixel 10 Pro XL canvas-first trial:** build 42 reset on its first local
-  view, before any completed GPU batch. Try build 43
-  `?graphics=full-basic-shadows&preflight=1&trial=1`. It initializes the real
-  shadow map using simple meshes on the game canvas, checks the same meshes
-  in the actual HDR startup buffer, and retains the map for gameplay. Copy the
-  failure report if it resets: the completed probe list narrows the condition.
-  Normal Android must stay on the verified shadow-free profile until confirmed.
+- **Pixel 10 Pro XL world shadow checks:** both build 43 simple preflight
+  draws passed; the actual first world view still reset. Run build 44
+  `?graphics=full-basic-shadows&preflight=1&worldprobe=1&trial=1` and copy the
+  failure report. It separates depth casters by geometry group and receiving
+  by surface group. Use actual draw counts: zero draws is not proof a group
+  works. Keep the normal Android game on its confirmed shadow-free profile.
 - **Longer Pixel play session:** full detail without shadow maps is physically
   confirmed working and is now the normal Android profile. Check a longer play
   session and offline reopening when convenient. The precise failing GPU

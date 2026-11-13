@@ -10,6 +10,7 @@ import { SAFE_GRAPHICS, GRAPHICS, GRAPHICS_TRIALS } from './graphics.js';
 import { PORTRAITS } from './portraits.js';
 import { waitForGpu, makeWarmTarget } from './gpu-work.js';
 import { primeShadowMap } from './shadow-preflight.js';
+import { checkWorldShadows } from './shadow-world-check.js';
 
 import { Sound, NOTES } from './audio.js';
 import { CREATURES, makeCreature, makeFluff, toy, starGeometry } from './creatures.js';
@@ -38,14 +39,27 @@ const $ = id => document.getElementById(id);
 const GRAPHICS_CHECK = new URLSearchParams(location.search).get('trial') === '1';
 let graphicsStage = 'Creating renderer', graphicsLost = false;
 let localWarmupPending = GRAPHICS.localShadowWarmup;
-const graphicsReport = { build: 43, profile: GRAPHICS, userAgent: navigator.userAgent };
+const graphicsReport = { build: 44, profile: GRAPHICS, userAgent: navigator.userAgent };
 const graphicsStep = stage => { graphicsStage = stage; };
+function showGraphicsReport() {
+  if (!GRAPHICS_CHECK || $('copyGraphicsReport')) return;
+  const b = document.createElement('button'), pre = document.createElement('pre');
+  b.id = 'copyGraphicsReport'; b.textContent = 'Copy graphics report';
+  pre.id = 'graphicsReport'; pre.style.cssText = 'white-space:pre-wrap;text-align:left;max-width:90vw;max-height:30vh;overflow:auto;font-size:12px';
+  pre.hidden = true;
+  b.onclick = async () => {
+    pre.textContent = JSON.stringify(graphicsReport, null, 2); pre.hidden = false;
+    try { await navigator.clipboard.writeText(pre.textContent); b.textContent = 'Copied'; }
+    catch { b.textContent = 'Copy the report below'; }
+  };
+  $('oops').append(b, pre);
+}
 // Only explicit trial links show this return control, even if startup fails.
 if (GRAPHICS_CHECK) {
   const link = document.createElement('a'); link.className = 'graphicsTrialBack';
-  link.href = 'graphics-tests.html?build=43';
+  link.href = 'graphics-tests.html?build=44';
   const trialMode = new URLSearchParams(location.search).get('graphics');
-  const trialLabel = trialMode === 'full-basic-shadows' ? 'Basic shadows · ' + (GRAPHICS.shadowPreflight ? 'canvas-first startup' : GRAPHICS.localShadowWarmup ? 'local startup' : 'original startup')
+  const trialLabel = trialMode === 'full-basic-shadows' ? 'Basic shadows · ' + (GRAPHICS.worldShadowCheck ? 'world checks' : GRAPHICS.shadowPreflight ? 'canvas-first startup' : GRAPHICS.localShadowWarmup ? 'local startup' : 'original startup')
     : trialMode === 'full-no-shadows' ? 'Full detail, no shadow maps'
     : GRAPHICS.restored.map(k => GRAPHICS_TRIALS.find(t => t.key === k).label).join(', ') || 'Working baseline';
   link.textContent = '↩ Graphics checks · ' + trialLabel + (trialMode !== 'full-basic-shadows' && GRAPHICS.shadows && GRAPHICS.shadowType === 'basic' ? ' · basic sampling' : '');
@@ -125,18 +139,7 @@ canvas.addEventListener('webglcontextlost', e => {
   graphicsReport.lastSubmittedStage = graphicsStage;
   graphicsReport.contextLost = true; graphicsReport.lossDetail = e.statusMessage || '(browser supplied no reason)';
   window.__oops && window.__oops('The browser reset the 3D graphics. Tap Try again. If Chrome says graphics are blocked, close Chrome completely and reopen the game.');
-  if (GRAPHICS_CHECK && !$('copyGraphicsReport')) {
-    const b = document.createElement('button'), pre = document.createElement('pre');
-    b.id = 'copyGraphicsReport'; b.textContent = 'Copy graphics report';
-    pre.id = 'graphicsReport'; pre.style.cssText = 'white-space:pre-wrap;text-align:left;max-width:90vw;max-height:30vh;overflow:auto;font-size:12px';
-    pre.hidden = true;
-    b.onclick = async () => {
-      pre.textContent = JSON.stringify(graphicsReport, null, 2); pre.hidden = false;
-      try { await navigator.clipboard.writeText(pre.textContent); b.textContent = 'Copied'; }
-      catch { b.textContent = 'Copy the report below'; }
-    };
-    $('oops').append(b, pre);
-  }
+  showGraphicsReport();
 });
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.debug.checkShaderErrors = TEST; // (build 24: the shader error check forces the browser to wait for each shader the first time it is used; on only in test mode)
@@ -1154,6 +1157,7 @@ async function warmAreas() { const warmT0 = performance.now(), local = GRAPHICS.
     for (const [x, y] of views) {
       cam.position.set(x, y + 2.15, CAM_DIST); cam.lookAt(x, y + 1.15, 0); cam.updateMatrixWorld();
       sun.position.set(x - 7, y + 16, 10); sun.target.position.set(x, y, 0); sun.target.updateMatrixWorld();
+      if (first && GRAPHICS.worldShadowCheck) await checkWorldShadows({ renderer, scene, camera: cam, sun, target: rt, report: graphicsReport, step: graphicsStep });
       graphicsStep(`Warming local view at ${x}, ${y}`);
       if (local) { renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true; metrics.localPasses++; }
       renderer.setRenderTarget(rt); renderer.render(scene, cam); if (first) { renderer.shadowMap.autoUpdate = false; first = false; }
@@ -1204,7 +1208,10 @@ Promise.race([Promise.all([assetsReady, landmarksReady]), new Promise(r => setTi
   .then(() => { graphicsStep('Compiling scene materials'); return compileAll(); })
   .then(() => warmAreas()).then(() => { localWarmupPending = false; begin(); }, e => {
     localWarmupPending = false;
-    if (GRAPHICS.localShadowWarmup) { if (!graphicsLost) window.__oops?.('Graphics startup stopped: ' + e.message); }
+    if (GRAPHICS.localShadowWarmup) { if (!graphicsLost) {
+      graphicsReport.startupError = e.message; graphicsReport.lastSubmittedStage = graphicsStage;
+      window.__oops?.('Graphics startup stopped: ' + e.message); showGraphicsReport();
+    } }
     else begin();
   });
 setTimeout(begin, 15000);

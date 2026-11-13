@@ -4,6 +4,43 @@ Rule: the game must never get slower. Measure before and after every change on i
 **Desktop numbers come from a software-rendered browser and are NOT iPhone numbers.** Only the in-game report from the
 real iPhone (⚙️ → Performance Test → Copy Test Results) counts as an iPhone measurement.
 
+## Build 44 automatic world shadow checks
+
+- **Physical result:** both build 43 simple probes passed on the Pixel with
+  zero GL errors, the original 1536 Basic map and the exact HDR/MSAA/depth
+  startup target. The first actual world draw still reset. Initialization order
+  did not fix the failure; this evidence shifts diagnosis to the real world
+  casting/material paths without asserting a specific GPU instruction.
+- The opt-in `worldprobe=1` diagnostic adds startup work deliberately; it is
+  never enabled by normal profiles. In desktop/software rendering (844×390,
+  scale factor 2), the final run reaches Play in 59.2 s including all checks
+  (ordinary build 43 Basic/preflight trial: 44.2 s). Normal Android without the
+  diagnostic reaches Play in 43.0 s in its focused run (previous run 38.9 s).
+  These single runs are not physical phone timing or a throughput comparison.
+- Actual full-world instrumentation verifies 13 completed checks with zero GL
+  errors. Depth-only checks submit **zero world color draws**: static opaque
+  casters 100 shadow draws, instanced opaque 2, skinned opaque 8, all casters
+  110. No cutout/displaced caster group was present in this scene snapshot.
+- Frozen-map checks submit **zero shadow depth draws**, with 299 total color
+  draws each. Actual receiving draws: off 0, standard surfaces 0, physical
+  surfaces 31, custom surfaces 1, instanced scenery 2, skinned bodies 7, fur 35,
+  all receiving 76. The zero standard-surface count is explicitly not evidence
+  of support for that group. Original combined draw: 110 depth and 299 color
+  draws. Both enabled-object counts and actual draw counts are reported.
+- Temporary callbacks, flags and light layers restore after each diagnostic
+  run. A small real-renderer fixture produces **identical rendered pixels**
+  before/after successful checks, exercises static/cutout/instanced/skinned and
+  fur-like groups, and verifies cleanup/report incompletion when losing the
+  context during a receiving step. The full game retains all original graphics
+  features and visible shadows after the checks; its normal 16 startup batches
+  complete. Framebuffers, map size and sampler types remain unchanged.
+- Focused profile/default, strict canvas request, portraits, quality guard,
+  hub persistence/export, copied failure report and offline migration checks
+  pass. No diagnostic draws, snapshots or per-draw callbacks run in normal
+  profiles. The full gameplay suite, longer performance tests and physical
+  world-check results remain pending. Keep draft and the verified shadow-free
+  normal Android game; this diagnostic is not a claimed completed shadow fix.
+
 ## Build 43 canvas-first shadow initialization
 
 - Physical build 42 report: context loss on the first local view (5, 0), one

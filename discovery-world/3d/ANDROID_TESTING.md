@@ -1,5 +1,35 @@
 # Pixel 10 Pro test branch
 
+## Current result and automatic world checks (build 44)
+
+On the physical Pixel, **both build 43 simple probes passed**: on the game's
+canvas and in its exact HDR antialiased startup buffer, zero GL errors and a
+retained 1536×1536 Basic shadow map. The first actual world view still reset.
+Initializing the map first did not solve this failure. The buffer alone does
+not reproduce it with simple meshes.
+
+Run the world-specific check:
+<https://zyzil.github.io/Dawson-s-Wonderverse/discovery-world/3d/?graphics=full-basic-shadows&preflight=1&worldprobe=1&trial=1&build=44>.
+
+One run checks actual depth casting from static, instanced and skinned meshes,
+with cutout/displaced groups where present. These checks use a separate main
+camera layer, while the existing shadow-camera layers still see world casters;
+no world surface colors are drawn. It then freezes the full depth map and tests
+the original world shaders with receiving off and enabled per material/geometry
+group, including fur. The final check combines all casters and receivers.
+Every submitted step waits for GPU completion before continuing.
+
+If it resets, use **Copy graphics report**. `worldShadowCheck.probes` contains
+completed steps, the pending step and actual depth/color draw counts. A group
+with zero actual draws has not been proved to work. The stage identifies the
+submitted category, not a specific GPU instruction or defective mesh.
+
+Temporary flags and layers restore even after failure; no saves are modified.
+If all checks pass, normal warmup and play continue with all original features.
+This diagnostic may load more slowly. The normal Android game remains on the
+confirmed shadow-free profile, and omitting `worldprobe=1` preserves the earlier
+comparison. Force-stop Chrome first if a prior reset left graphics blocked.
+
 ## Current failure and targeted trial (build 43)
 
 The physical build 42 Basic/local-startup trial **also failed**, at the first
@@ -252,6 +282,7 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:shadow-pixels
 CHROMIUM_PATH=/usr/bin/chromium npm run test:shadow-check
 CHROMIUM_PATH=/usr/bin/chromium npm run test:gpu-work
 CHROMIUM_PATH=/usr/bin/chromium npm run test:shadow-preflight
+CHROMIUM_PATH=/usr/bin/chromium npm run test:shadow-world
 ```
 
 The Android suite checks portrait image pixels, old blank portrait-cache recovery,

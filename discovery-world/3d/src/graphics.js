@@ -34,7 +34,8 @@ export function getGraphicsProfile(search = location.search, ua = navigator.user
   // whole-world warmup still reset. Keep that comparison explicitly available.
   const localShadowWarmup = flags.shadows && shadowType === 'basic' && params.get('warmup') !== 'original';
   const shadowPreflight = localShadowWarmup && params.get('preflight') === '1';
-  return Object.freeze({ safe, restored: Object.freeze(restored), shadowType, localShadowWarmup, shadowPreflight, ...flags });
+  const worldShadowCheck = shadowPreflight && params.get('worldprobe') === '1';
+  return Object.freeze({ safe, restored: Object.freeze(restored), shadowType, localShadowWarmup, shadowPreflight, worldShadowCheck, ...flags });
 }
 
 export const GRAPHICS = getGraphicsProfile();
