@@ -4,6 +4,23 @@ Rule: the game must never get slower. Measure before and after every change on i
 **Desktop numbers come from a software-rendered browser and are NOT iPhone numbers.** Only the in-game report from the
 real iPhone (⚙️ → Performance Test → Copy Test Results) counts as an iPhone measurement.
 
+## Build 35 test branch: focused startup measurements
+
+Desktop Chromium with software rendering, 844×390 touch viewport. Single runs
+of the light `?test` build, timed through startup and tapping Play:
+
+| Build | Startup through Play |
+|---|---:|
+| Saved original build 34c | 47.3 s |
+| Updated build, original graphics request | 34.0 s |
+| Updated build, `?graphics=compatible` | 31.8 s |
+
+These measurements show successful startup, not a reliable speed comparison:
+shader-cache and software-rendering variability affect the timings. No claim of
+improved phone performance is made. The default path keeps the original context
+attributes when they work; the new work runs once during startup. Full gameplay
+performance measurements and physical Pixel/iPhone measurements remain pending.
+
 ## How to measure (from `discovery-world/3d`)
 Prefix every command with `NODE_PATH=$(npm root -g)`, e.g. `NODE_PATH=$(npm root -g) node tests/perf/ba.cjs index.html`.
 

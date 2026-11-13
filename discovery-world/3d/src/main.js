@@ -44,7 +44,43 @@ const LIGHT = { env: .55, hemi: .7, sun: 2.85, rim: .55, exposure: .95 };
 const canvas = $('game');
 // phones: start lighter (no MSAA at high pixel density, smaller shadow map, 1.5x resolution)
 const MOBILE = matchMedia('(pointer: coarse)').matches || /iPhone|iPad|Android/.test(navigator.userAgent);
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+// Keep the existing graphics settings when they work; retry simpler WebGL 2
+// settings before giving up. Three.js r187 cannot render with WebGL 1.
+function createRenderer(canvas) {
+  const compatible = [
+    { antialias: false, powerPreference: 'default' },
+    { antialias: false, powerPreference: 'low-power' },
+  ];
+  // A separate test URL can skip the original request if it crashes a driver
+  // instead of returning a normal context-creation error.
+  const attempts = new URLSearchParams(location.search).get('graphics') === 'compatible'
+    ? compatible : [{ antialias: true, powerPreference: 'high-performance' }, ...compatible];
+  const failures = [];
+  let detail = '';
+  const onCreationError = e => { detail = e.statusMessage || ''; };
+  canvas.addEventListener('webglcontextcreationerror', onCreationError);
+  try {
+    for (const options of attempts) {
+      detail = '';
+      try {
+        return new THREE.WebGLRenderer({ canvas, ...options });
+      } catch (e) {
+        // Do not hide an unrelated renderer/shader initialization bug.
+        if (!/Error creating WebGL context/.test(e.message || '')) throw e;
+        detail = detail || e.message;
+      }
+      failures.push(`${options.powerPreference}, AA=${options.antialias}: ${detail || 'unavailable'}`);
+    }
+    // The existing error screen displays this message. Do not probe WebGL 1 on
+    // this canvas: it cannot be used by this Three.js version.
+    console.error('WebGL 2 startup attempts:', failures);
+    throw new Error('WebGL 2 could not start. Update Chrome and restart the phone, then try again. ' +
+      'If it still fails, send the phone model and Chrome version. Browser detail: ' + failures[failures.length - 1]);
+  } finally {
+    canvas.removeEventListener('webglcontextcreationerror', onCreationError);
+  }
+}
+const renderer = createRenderer(canvas);
 canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); window.__oops && window.__oops('The device reset the 3D graphics (it may be low on memory). Tap Try again.'); });
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.debug.checkShaderErrors = TEST; // (build 24: the shader error check forces the browser to wait for each shader the first time it is used; on only in test mode)

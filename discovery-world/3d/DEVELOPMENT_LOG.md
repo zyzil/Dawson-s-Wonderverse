@@ -4,6 +4,22 @@ Completed changes and how each was tested, newest first. Each checkpoint says wh
 browser vs. a real iPhone). The routine and rules are in `CLAUDE.md`; unfinished work is in `NEXT_TASKS.md`; measurements
 are in `PERFORMANCE_LOG.md`.
 
+## Checkpoint: build 35 Android test branch
+- **Reported:** Pixel 10 Pro / Chrome cannot create the game's WebGL context;
+  the standalone WebGL 2 cube works on the same phone.
+- **Proposed fix:** retry WebGL 2 startup without canvas antialiasing using the
+  default and then low-power graphics preference. Capture browser creation errors.
+  `?graphics=compatible` starts with the simpler request directly.
+- **Test setup:** rebuilt the offline `index.html`, preserved the original as
+  `../backups/3D_build35_index.html`, added `npm run test:renderer`, and documented
+  test URLs and branch-based Pages publishing in `ANDROID_TESTING.md`.
+- **Verified (desktop, software rendering):** seven renderer cases pass, including
+  actual pixel rendering, unavailable antialiasing, a low-power-only context,
+  diagnostic errors and listener cleanup. The original build, updated default
+  build and explicit compatible build start and accept the Play button without
+  uncaught JavaScript errors in light test mode.
+- **Pending:** physical Pixel verification and the full gameplay smoke suite.
+
 ## Checkpoint: build 34c (user request)
 - **Removed the big pink wall** at x -1.5, by the train at the start of the playhouse (requested with a screenshot). It was the old left edge of the world. The world now continues left and the train runs through there, so it only blocked the view.
   - It was scenery only (no collision, nothing referenced it).

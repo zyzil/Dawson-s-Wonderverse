@@ -4,6 +4,15 @@ This is the full rebuild of Dawson's Discovery World in real 3D. It is a **separ
 
 Play: open `index.html`. It is one self-contained file and works offline. Once merged, it is also on GitHub Pages at `…/discovery-world/3d/`.
 
+## Build 35 test branch: Android graphics startup
+
+The `android-webgl-fallback` branch retries simpler graphics settings when WebGL 2
+context creation fails. Add `?graphics=compatible` to start directly with
+antialiasing off and the default graphics preference. See
+[Android testing and publishing](ANDROID_TESTING.md) for the fork's test links,
+Pages setup, rebuild commands, and regression tests. Physical Pixel 10 Pro
+verification is pending.
+
 ## What's in 3D build 1
 It is one connected 3D world that you walk through from left to right. There are no levels and no loading screens.
 

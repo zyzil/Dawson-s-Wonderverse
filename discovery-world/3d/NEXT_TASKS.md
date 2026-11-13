@@ -4,6 +4,10 @@ Prioritized unfinished work, highest first. Take the top item that can be done w
 remove it here and record it in `DEVELOPMENT_LOG.md`. Add new findings (bugs, ideas, measurements that look wrong) as you go.
 
 ## Waiting for the user
+- **Pixel 10 Pro:** test the fork's `android-webgl-fallback` branch using
+  `?graphics=compatible`, then the regular URL. WebGL 2's standalone cube works
+  on this phone; the exact game startup failure still needs physical verification.
+  See `ANDROID_TESTING.md`. If it fails, collect the new error and Chrome/Android versions.
 - **iPhone report #2:** ask for the in-game ⚙️ → Performance Test → Copy Test Results, with Low Power Mode off, after
   tapping "Test the voice". It shows whether the graphics level recovers (build 33), the real frame rate, and whether speech plays.
 - **Confirm the squish fix (build 34b)** on the iPhone Home Screen app after turning the phone.

@@ -5,7 +5,8 @@
   "description": "Dawson's Discovery World in real 3D (Three.js). Builds to one offline HTML file.",
   "scripts": {
     "build": "node build.mjs",
-    "test": "node tests/smoke3d.cjs"
+    "test": "node tests/smoke3d.cjs",
+    "test:renderer": "node tests/renderer-startup.cjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
