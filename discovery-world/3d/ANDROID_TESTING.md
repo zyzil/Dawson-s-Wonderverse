@@ -1,5 +1,20 @@
 # Pixel 10 Pro test branch
 
+## Confirmed result and normal Android default (build 39)
+
+The physical Pixel 10 Pro confirms full detail without shadow maps opens and
+plays. The isolated shadow trial fails. The normal Android URL now selects the
+confirmed shadow-free profile: resolution, detailed scenery, fur, effects and
+canvas antialiasing restored; shadow-map rendering and light shadow casting off
+from startup. Normal canvas requests retain fallback if their preferred options
+are unsupported. Explicit trials still fail visibly rather than hiding rejection.
+
+Play using the normal URL:
+<https://zyzil.github.io/Dawson-s-Wonderverse/discovery-world/3d/>.
+`?graphics=safe` remains the lighter fallback. The iPhone/non-Android default keeps
+the original full profile including shadows. This is an Android compatibility
+workaround for the observed failure, not a hardware capability limit.
+
 The `android-webgl-fallback` branch contains the Android rendering profile and
 bundled character pictures. On the physical Pixel 10 Pro, the WebGL 2 cube works;
 the original effects-heavy game fails with context loss and a Chrome graphics
@@ -18,14 +33,14 @@ The physical Pixel 10 Pro failed the shadow-only trial. This identifies at least
 one failing rendering path, not the exact shader/driver operation or whether
 every other feature will work together.
 
-The next combined trial restores all six other graphics categories and keeps
+The now-confirmed combined profile restores all six other graphics categories and keeps
 shadow maps disabled:
 <https://zyzil.github.io/Dawson-s-Wonderverse/discovery-world/3d/?graphics=full-no-shadows&trial=1&build=38>.
 
 This explicit preset disables shadow-map rendering and shadow-casting lights
 from startup; quality controls cannot re-enable them. It ignores a conflicting
-`restore=shadows` parameter. Normal Android defaults remain on the previously
-working safe profile until the combined trial passes on the physical phone.
+`restore=shadows` parameter. Build 39 promotes the phone-verified combination to
+the normal Android default.
 The checks page offers a separate result field for this combined trial and
 skips the known failing shadow category when choosing the next individual check.
 
@@ -55,9 +70,9 @@ canvas-request checks, rejected settings fail visibly rather than falling back
 and making the feature appear supported. The browser's accepted preference is
 a hint, not a measurement of which hardware the browser selected.
 
-Passing separately does not establish that every combination will work. Once
-the physical Pixel results identify working features, test the chosen combination
-before changing the normal Android default. All checks use normal gameplay,
+Passing separately does not establish that every combination will work. The
+shadow-free combination is now physically verified; future changes still need
+combination testing before becoming defaults. All checks use normal gameplay,
 speech and saves; they do not use automated test mode.
 
 The service worker caches the checks page separately so visiting it cannot
@@ -71,14 +86,14 @@ In the fork's **Settings → Pages**, select **Deploy from a branch**, then
 
 For the `zyzil/Dawson-s-Wonderverse` fork, open:
 
-- Normal game (automatically uses the lighter profile on Android):
+- Normal game (automatically uses full detail without shadow maps on Android):
   <https://zyzil.github.io/Dawson-s-Wonderverse/discovery-world/3d/>
 - Force the lighter profile on any device:
   <https://zyzil.github.io/Dawson-s-Wonderverse/discovery-world/3d/?graphics=safe>
 - Explicitly opt into the original full rendering profile for debugging:
   <https://zyzil.github.io/Dawson-s-Wonderverse/discovery-world/3d/?graphics=full>
 
-The Android/safe profile uses procedural scenery, no shell fur, no real-time
+The explicit safe profile uses procedural scenery, no shell fur, no real-time
 shadow map, no post-processing effects, lower resolution, and a non-antialiased
 canvas with the default graphics preference. The low-power preference is tried
 if context creation fails. The original full profile remains the default on

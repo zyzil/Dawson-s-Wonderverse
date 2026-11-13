@@ -21,11 +21,12 @@ async function main() {
       ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
       args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
     });
-    for (const [name, ua, query, safe] of [
-      ['Android default', PIXEL, '', true],
-      ['explicit safe mode', null, '?graphics=safe', true],
-      ['Android full opt-in', PIXEL, '?graphics=full', false],
+    for (const [name, ua, query, profile] of [
+      ['Android default', PIXEL, '', 'shadow-free'],
+      ['explicit safe mode', null, '?graphics=safe', 'safe'],
+      ['Android full opt-in', PIXEL, '?graphics=full', 'full'],
     ]) {
+      const safe = profile === 'safe';
       const ctx = await browser.newContext({
         viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true,
         ...(ua ? { userAgent: ua } : {}),
@@ -93,7 +94,10 @@ async function main() {
         assert.equal(report.quality, .4);
       } else {
         assert.equal(report.attributes.antialias, true);
-        assert.equal(report.post, true); assert.equal(report.shadow, true);
+        assert.equal(report.post, true); assert.equal(report.shadow, profile === 'full');
+        if (profile === 'shadow-free') {
+          assert.equal(report.postTarget, true); assert(report.fur > 0); assert.equal(report.quality, .75);
+        }
       }
       // Both UI selection and the real controls continue to work.
       await page.locator('.creatureChoice[data-c="jelly"]').tap();

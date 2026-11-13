@@ -41,7 +41,8 @@ async function main() {
     const profiles = await p.evaluate(({ keys, ua }) => {
       const output = {};
       for (const k of keys) output[k] = getGraphicsProfile('?graphics=safe&restore=' + k, ua);
-      return { output, safe: getGraphicsProfile('', ua), full: getGraphicsProfile('?graphics=full', ua),
+      return { output, safe: getGraphicsProfile('?graphics=safe', ua), full: getGraphicsProfile('?graphics=full', ua),
+        androidDefault: getGraphicsProfile('', ua),
         shadowFree: getGraphicsProfile('?graphics=full-no-shadows&restore=shadows', ua),
         iphone: getGraphicsProfile('', 'iPhone'), unknown: getGraphicsProfile('?graphics=safe&restore=bogus', ua),
         combined: getGraphicsProfile('?graphics=safe&restore=fur,shadows,fur', ua) };
@@ -49,6 +50,7 @@ async function main() {
     for (const key of KEYS) {
       assert.equal(profiles.safe[key], false); assert.equal(profiles.full[key], true); assert.equal(profiles.iphone[key], true);
       assert.equal(profiles.shadowFree[key], key !== 'shadows', 'shadow-free preset must exclude only shadows, including with an extra restore request');
+      assert.equal(profiles.androidDefault[key], key !== 'shadows', 'Android default must match the physically verified profile');
       for (const other of KEYS) assert.equal(profiles.output[key][other], other === key, key + ' must change only ' + key);
       assert.deepEqual(profiles.output[key].restored, [key]);
     }
@@ -104,7 +106,23 @@ async function main() {
       await page.close();
     }
 
-    const cases = ['baseline', ...KEYS, 'full-no-shadows'];
+    // A normal Android URL may fall back when its preferred canvas request is
+    // unsupported; an explicit restoration trial must still fail visibly.
+    const fallback = await browser.newPage({ userAgent: PIXEL });
+    await fallback.goto(base + '/fixture');
+    const fallbackAttrs = await fallback.evaluate(() => {
+      const canvas = document.getElementById('game'), original = canvas.getContext.bind(canvas);
+      canvas.getContext = (type, attrs) => {
+        if (!attrs || attrs.powerPreference === 'high-performance') return null;
+        return original(type, attrs);
+      };
+      const r = createRenderer(canvas), a = r.getContext().getContextAttributes(); r.dispose(); return a;
+    });
+    assert.equal(fallbackAttrs.antialias, false); assert.equal(fallbackAttrs.powerPreference, 'default');
+    await fallback.close();
+    console.log('PASS default Android canvas fallback without weakening explicit trials');
+
+    const cases = ['baseline', ...KEYS, 'full-no-shadows', 'android-default'];
     const selected = process.env.GRAPHICS_CASES ? process.env.GRAPHICS_CASES.split(',') : cases;
     assert(selected.length && selected.every(k => cases.includes(k)), 'valid requested game scenarios');
     for (const key of cases.filter(k => selected.includes(k))) {
@@ -112,12 +130,13 @@ async function main() {
       const page = await ctx.newPage(), errors = [];
       page.on('pageerror', e => errors.push(e.message));
       const query = new URLSearchParams({ graphics: 'safe', trial: '1' });
-      if (key === 'full-no-shadows') query.set('graphics', key);
+      if (key === 'android-default') { query.delete('graphics'); query.delete('trial'); }
+      else if (key === 'full-no-shadows') query.set('graphics', key);
       else if (key !== 'baseline') query.set('restore', key);
       const start = Date.now();
       await page.goto(base + '/game?' + query, { timeout: 180000 });
       await page.waitForFunction(() => window.__DDW3 && document.getElementById('loading').classList.contains('done'), null, { timeout: 180000 });
-      if (key === 'scenery' || key === 'full-no-shadows') await page.waitForFunction(() => __DDW3.LOWSTATS.hi > 0, null, { timeout: 30000 });
+      if (['scenery', 'full-no-shadows', 'android-default'].includes(key)) await page.waitForFunction(() => __DDW3.LOWSTATS.hi > 0, null, { timeout: 30000 });
       await page.locator('#playBtn').tap();
       const actual = await page.evaluate(() => {
         const D = __DDW3, a = D.renderer.getContext().getContextAttributes();
@@ -128,12 +147,14 @@ async function main() {
           oops: !document.getElementById('oops').hidden,
           pictures: [...document.querySelectorAll('.introPick img')].every(i => i.complete && i.naturalWidth === 256) };
       });
-      for (const feature of KEYS) assert.equal(actual[feature], key === 'full-no-shadows' ? feature !== 'shadows' : feature === key, key + ': unexpected ' + feature);
-      assert.equal(actual.pixelRatio, key === 'resolution' || key === 'full-no-shadows' ? 1.5 : .8);
+      const shadowFree = ['full-no-shadows', 'android-default'].includes(key);
+      for (const feature of KEYS) assert.equal(actual[feature], shadowFree ? feature !== 'shadows' : feature === key, key + ': unexpected ' + feature);
+      assert.equal(actual.pixelRatio, key === 'resolution' || shadowFree ? 1.5 : .8);
       assert.equal(actual.profile.safe, true); assert.equal(actual.oops, false); assert.equal(actual.pictures, true);
-      assert(await page.locator('.graphicsTrialBack').isVisible());
+      if (key === 'android-default') assert.equal(await page.locator('.graphicsTrialBack').count(), 0);
+      else assert(await page.locator('.graphicsTrialBack').isVisible());
       assert.deepEqual(errors, []);
-      if (key === 'full-no-shadows') {
+      if (shadowFree) {
         const guards = await page.evaluate(() => [5, 0].map(level => {
           const D = __DDW3; D.G.applyGfx(level);
           let casters = 0, maps = 0; D.G.scene.traverse(o => { if (o.isLight) { if (o.castShadow) casters++; if (o.shadow?.map) maps++; } });

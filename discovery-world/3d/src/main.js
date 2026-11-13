@@ -71,13 +71,16 @@ function createRenderer(canvas) {
   ];
   // A separate test URL can skip the original request if it crashes a driver
   // instead of returning a normal context-creation error.
-  const canvasTrial = GRAPHICS.restored.includes('antialias') || GRAPHICS.restored.includes('power');
+  const params = new URLSearchParams(location.search);
+  const requested = { antialias: GRAPHICS.antialias, powerPreference: GRAPHICS.power ? 'high-performance' : 'default' };
+  const canvasTrial = (params.has('restore') || params.get('graphics') === 'full-no-shadows')
+    && (GRAPHICS.restored.includes('antialias') || GRAPHICS.restored.includes('power'));
   // A canvas trial must fail visibly if its request is rejected. Silently
   // falling back would make an unsupported feature appear to have passed.
   const attempts = canvasTrial
-    ? [{ antialias: GRAPHICS.antialias, powerPreference: GRAPHICS.power ? 'high-performance' : 'default' }]
-    : SAFE_GRAPHICS || new URLSearchParams(location.search).get('graphics') === 'compatible'
-    ? compatible : [{ antialias: true, powerPreference: 'high-performance' }, ...compatible];
+    ? [requested]
+    : (!GRAPHICS.antialias && !GRAPHICS.power) || params.get('graphics') === 'compatible'
+    ? compatible : [requested, ...compatible];
   const failures = [];
   let detail = '';
   const onCreationError = e => { detail = e.statusMessage || ''; };

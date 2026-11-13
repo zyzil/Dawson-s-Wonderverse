@@ -4,6 +4,25 @@ Completed changes and how each was tested, newest first. Each checkpoint says wh
 browser vs. a real iPhone). The routine and rules are in `CLAUDE.md`; unfinished work is in `NEXT_TASKS.md`; measurements
 are in `PERFORMANCE_LOG.md`.
 
+## Checkpoint: build 39 confirmed Android default
+- **Physical Pixel confirmation:** the user reports full detail without shadow
+  maps opens and plays. The isolated shadow trial failed.
+- Promote the exact verified profile to the normal Android URL. Keep all six
+  restored categories and freeze the profile as in the successful trial; shadow
+  maps and light shadow casting remain disabled from startup. Explicit safe
+  mode and the original non-Android profile remain available.
+- Regular game canvas requests retain compatible fallback; explicit diagnostic
+  trials still fail visibly if their requested options are rejected. Game saves
+  and bundled portraits are unchanged. Pre-change HTML is preserved in
+  `../backups/3D_build39_index.html`.
+- **Verified (desktop, software rendering):** the normal Android URL starts
+  with all six restored categories active, no trial UI and zero shadow maps.
+  Quality changes cannot turn shadows back on. Explicit safe mode, default
+  canvas fallback, strict trial rejection, profile filtering, local results
+  persistence/export and game-save isolation also pass.
+- The precise shader/driver operation within the shadow path remains unknown;
+  the verified workaround is shadow-map rendering off, not lower hardware capability.
+
 ## Checkpoint: build 38 shadow-free full-detail trial
 - **Physical Pixel report:** the isolated shadow trial broke the game.
 - **Next trial:** `?graphics=full-no-shadows` restores resolution, detailed

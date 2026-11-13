@@ -4,6 +4,19 @@ Rule: the game must never get slower. Measure before and after every change on i
 **Desktop numbers come from a software-rendered browser and are NOT iPhone numbers.** Only the in-game report from the
 real iPhone (⚙️ → Performance Test → Copy Test Results) counts as an iPhone measurement.
 
+## Build 39 confirmed Android default
+
+- Physical Pixel 10 Pro: the user confirms the combined full-detail profile
+  without shadow maps works. No physical frame-rate measurement was supplied.
+- Desktop Chromium/software rendering, 844×390 touch viewport, scale factor 2:
+  the normal Android URL starts through Play in 45.4 s with all six restored
+  categories active; the explicit lighter baseline starts in 22.1 s. These
+  single-run startup timings do not establish phone speed or a regression.
+- Normal Android uses the same fixed rendering profile the Pixel verified.
+  Shadow maps remain disabled and unallocated through quality changes. Canvas
+  fallback is retained for unsupported preferred options, while diagnostic
+  trials remain strict. Longer physical sessions remain to be measured.
+
 ## Build 38 full detail without shadow maps
 
 - Physical Pixel report: the isolated shadow-only trial failed. This identifies

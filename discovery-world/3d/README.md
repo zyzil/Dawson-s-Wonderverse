@@ -4,6 +4,14 @@ This is the full rebuild of Dawson's Discovery World in real 3D. It is a **separ
 
 Play: open `index.html`. It is one self-contained file and works offline. Once merged, it is also on GitHub Pages at `…/discovery-world/3d/`.
 
+## Build 39: confirmed Android graphics fix
+
+The physical Pixel confirms full detail works when shadow maps are disabled.
+The normal Android game now uses that verified profile automatically: detailed
+scenery, fur, original resolution, effects and canvas antialiasing, with shadow
+maps off. Use the normal game link; no trial parameters are needed. The original
+iPhone profile retains shadows, and `?graphics=safe` remains the lighter fallback.
+
 ## Build 38 test branch: full detail without shadow maps
 
 The physical Pixel failed the shadow-only trial. `?graphics=full-no-shadows`

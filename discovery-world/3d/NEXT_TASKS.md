@@ -4,20 +4,10 @@ Prioritized unfinished work, highest first. Take the top item that can be done w
 remove it here and record it in `DEVELOPMENT_LOG.md`. Add new findings (bugs, ideas, measurements that look wrong) as you go.
 
 ## Waiting for the user
-- **Shadow-free full detail:** the physical Pixel's shadow-only check failed.
-  Test build 38's `?graphics=full-no-shadows` combined profile after restarting
-  Chrome. Do not promote its six other features to the Android default until
-  the phone verifies this combination. The original shadow-map trigger remains
-  unisolated within that rendering path.
-- **Individual graphics trials:** the updated Android build works on the Pixel.
-  Start build 37's graphics checks with resolution, then record the other
-  individual results. Keep the normal Android default on the working profile
-  until the physical results identify features and combinations to restore.
-- **Pixel 10 Pro:** verify build 36 at the fork's normal URL: automatic Android
-  rendering, visible character pictures, speech, walking and reopening saved
-  progress. The physical phone already runs `?test&graphics=compatible`; the
-  full-effects profile reset the graphics context and Chrome blocked the site.
-  The precise driver trigger remains unisolated. See `ANDROID_TESTING.md`.
+- **Longer Pixel play session:** full detail without shadow maps is physically
+  confirmed working and is now the normal Android profile. Check a longer play
+  session and offline reopening when convenient. The precise failing GPU
+  operation within the shadow path remains unisolated.
 - **iPhone report #2:** ask for the in-game ⚙️ → Performance Test → Copy Test Results, with Low Power Mode off, after
   tapping "Test the voice". It shows whether the graphics level recovers (build 33), the real frame rate, and whether speech plays.
 - **Confirm the squish fix (build 34b)** on the iPhone Home Screen app after turning the phone.

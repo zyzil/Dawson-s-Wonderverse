@@ -1,6 +1,6 @@
 // A rendering profile, independent of automated test mode: voice, saves and
-// learning games remain enabled. The Pixel 10 Pro was verified with the lighter
-// scenery, no shell fur, no post-processing, no shadows and lower resolution.
+// learning games remain enabled. The Pixel 10 Pro was verified with all visual
+// features restored except shadow maps. Explicit safe links remain available.
 export function useSafeGraphics(search = location.search, ua = navigator.userAgent) {
   const requested = new URLSearchParams(search).get('graphics');
   if (requested === 'full') return false;
@@ -19,7 +19,8 @@ export const GRAPHICS_TRIALS = Object.freeze([
 
 export function getGraphicsProfile(search = location.search, ua = navigator.userAgent) {
   const safe = useSafeGraphics(search, ua), params = new URLSearchParams(search);
-  const requested = new Set(params.get('graphics') === 'full-no-shadows'
+  const androidDefault = /Android/i.test(ua) && !params.has('graphics') && !params.has('restore');
+  const requested = new Set(params.get('graphics') === 'full-no-shadows' || androidDefault
     ? GRAPHICS_TRIALS.filter(t => t.key !== 'shadows').map(t => t.key)
     : (params.get('restore') || '').split(','));
   // Restore requests always start from the safe baseline and are limited to
