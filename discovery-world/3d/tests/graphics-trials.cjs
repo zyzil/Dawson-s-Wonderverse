@@ -44,6 +44,7 @@ async function main() {
       return { output, safe: getGraphicsProfile('?graphics=safe', ua), full: getGraphicsProfile('?graphics=full', ua),
         androidDefault: getGraphicsProfile('', ua),
         shadowFree: getGraphicsProfile('?graphics=full-no-shadows&restore=shadows', ua),
+        basicShadows: getGraphicsProfile('?graphics=full-basic-shadows', ua),
         iphone: getGraphicsProfile('', 'iPhone'), unknown: getGraphicsProfile('?graphics=safe&restore=bogus', ua),
         combined: getGraphicsProfile('?graphics=safe&restore=fur,shadows,fur', ua) };
     }, { keys: KEYS, ua: PIXEL });
@@ -51,11 +52,14 @@ async function main() {
       assert.equal(profiles.safe[key], false); assert.equal(profiles.full[key], true); assert.equal(profiles.iphone[key], true);
       assert.equal(profiles.shadowFree[key], key !== 'shadows', 'shadow-free preset must exclude only shadows, including with an extra restore request');
       assert.equal(profiles.androidDefault[key], key !== 'shadows', 'Android default must match the physically verified profile');
+      assert.equal(profiles.basicShadows[key], true, 'basic-shadow trial restores every original graphics category');
       for (const other of KEYS) assert.equal(profiles.output[key][other], other === key, key + ' must change only ' + key);
       assert.deepEqual(profiles.output[key].restored, [key]);
     }
     assert.deepEqual(profiles.unknown.restored, []);
     assert.deepEqual(profiles.combined.restored, ['shadows', 'fur']);
+    assert.equal(profiles.basicShadows.shadowType, 'basic');
+    assert.equal(profiles.full.shadowType, 'pcf');
     console.log('PASS independent profile matrix, safe defaults, full defaults and valid feature filtering');
     await p.close();
 
@@ -122,7 +126,7 @@ async function main() {
     await fallback.close();
     console.log('PASS default Android canvas fallback without weakening explicit trials');
 
-    const cases = ['baseline', ...KEYS, 'full-no-shadows', 'android-default'];
+    const cases = ['baseline', ...KEYS, 'full-no-shadows', 'android-default', 'full-basic-shadows'];
     const selected = process.env.GRAPHICS_CASES ? process.env.GRAPHICS_CASES.split(',') : cases;
     assert(selected.length && selected.every(k => cases.includes(k)), 'valid requested game scenarios');
     for (const key of cases.filter(k => selected.includes(k))) {
@@ -131,12 +135,12 @@ async function main() {
       page.on('pageerror', e => errors.push(e.message));
       const query = new URLSearchParams({ graphics: 'safe', trial: '1' });
       if (key === 'android-default') { query.delete('graphics'); query.delete('trial'); }
-      else if (key === 'full-no-shadows') query.set('graphics', key);
+      else if (['full-no-shadows', 'full-basic-shadows'].includes(key)) query.set('graphics', key);
       else if (key !== 'baseline') query.set('restore', key);
       const start = Date.now();
       await page.goto(base + '/game?' + query, { timeout: 180000 });
       await page.waitForFunction(() => window.__DDW3 && document.getElementById('loading').classList.contains('done'), null, { timeout: 180000 });
-      if (['scenery', 'full-no-shadows', 'android-default'].includes(key)) await page.waitForFunction(() => __DDW3.LOWSTATS.hi > 0, null, { timeout: 30000 });
+      if (['scenery', 'full-no-shadows', 'android-default', 'full-basic-shadows'].includes(key)) await page.waitForFunction(() => __DDW3.LOWSTATS.hi > 0, null, { timeout: 30000 });
       await page.locator('#playBtn').tap();
       const actual = await page.evaluate(() => {
         const D = __DDW3, a = D.renderer.getContext().getContextAttributes();
@@ -148,8 +152,8 @@ async function main() {
           pictures: [...document.querySelectorAll('.introPick img')].every(i => i.complete && i.naturalWidth === 256) };
       });
       const shadowFree = ['full-no-shadows', 'android-default'].includes(key);
-      for (const feature of KEYS) assert.equal(actual[feature], shadowFree ? feature !== 'shadows' : feature === key, key + ': unexpected ' + feature);
-      assert.equal(actual.pixelRatio, key === 'resolution' || shadowFree ? 1.5 : .8);
+      for (const feature of KEYS) assert.equal(actual[feature], key === 'full-basic-shadows' || (shadowFree ? feature !== 'shadows' : feature === key), key + ': unexpected ' + feature);
+      assert.equal(actual.pixelRatio, key === 'resolution' || shadowFree || key === 'full-basic-shadows' ? 1.5 : .8);
       assert.equal(actual.profile.safe, true); assert.equal(actual.oops, false); assert.equal(actual.pictures, true);
       if (key === 'android-default') assert.equal(await page.locator('.graphicsTrialBack').count(), 0);
       else assert(await page.locator('.graphicsTrialBack').isVisible());
@@ -161,6 +165,24 @@ async function main() {
           return { enabled: D.renderer.shadowMap.enabled, casters, maps };
         }));
         assert(guards.every(g => !g.enabled && g.casters === 0 && g.maps === 0), 'quality changes must not re-enable or allocate shadow maps');
+      }
+      if (key === 'full-basic-shadows') {
+        const basic = await page.evaluate(() => {
+          const D = __DDW3, maps = [], types = [], gl = D.renderer.getContext();
+          D.G.scene.traverse(o => { if (o.isLight && o.castShadow && o.shadow?.map) {
+            const m = o.shadow.map; maps.push({ width: m.width, height: m.height, compare: m.depthTexture.compareFunction, min: m.depthTexture.minFilter });
+          } });
+          for (const p of D.renderer.info.programs) {
+            const n = gl.getProgramParameter(p.program, gl.ACTIVE_UNIFORMS);
+            for (let i = 0; i < n; i++) { const u = gl.getActiveUniform(p.program, i); if (u.name.includes('directionalShadowMap')) types.push(u.type); }
+          }
+          return { mode: D.renderer.shadowMap.type === D.THREE.BasicShadowMap, maps, types, sampler: gl.SAMPLER_2D, nearest: D.THREE.NearestFilter };
+        });
+        assert.equal(basic.mode, true); assert(basic.maps.length > 0);
+        assert(basic.maps.every(m => m.width === 1536 && m.height === 1536 && m.compare === null && m.min === basic.nearest), 'change sampling method, not resolution');
+        assert(basic.types.length > 0 && basic.types.every(t => t === basic.sampler), 'compiled shaders use plain depth samplers, not hardware comparison samplers');
+        await page.screenshot({ path: path.join(ROOT, 'screenshots/android-basic-shadows.jpg'), type: 'jpeg' });
+        console.log('PASS real shadow-map allocation and compiled sampler types:', JSON.stringify(basic));
       }
       console.log('PASS real game single feature:', key, JSON.stringify({ ms: Date.now() - start, ...actual }));
       await ctx.close();

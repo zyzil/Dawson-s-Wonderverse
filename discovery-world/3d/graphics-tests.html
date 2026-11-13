@@ -12,6 +12,11 @@
 <body><main>
 <h1>Restore graphics one at a time</h1>
 <p>Each check starts with the working lighter settings and adds <b>one feature</b>. Play briefly, then use “Graphics checks” at the top of the game to return and record the result.</p>
+<aside><b>New shadow-method test</b>
+<p>The original filtered shadow path failed on the reported Pixel. This test uses basic depth sampling at the same shadow-map resolution, with all other graphics restored. Edges will be sharper; the Pixel result is still unknown.</p>
+<p><a id="basicShadows" class="primary" href="./?graphics=full-basic-shadows&amp;trial=1&amp;build=40">Try basic shadows with full detail</a></p>
+<label>Result: <select id="basicShadowResult" aria-label="Basic shadows with full detail result"></select></label>
+<p><a href="./?graphics=safe&amp;restore=shadows&amp;shadow=basic&amp;trial=1&amp;build=40">Test basic shadows alone</a></p></aside>
 <a id="next" class="primary" href="./?graphics=safe">Start next check</a>
 <aside><b>Pixel 10 Pro results:</b> the shadow-only trial failed, and full detail without shadow maps works. The normal Android game now uses that working profile.
 <p><a id="shadowFree" class="primary" href="./?graphics=full-no-shadows&amp;trial=1&amp;build=38">Try full detail without shadow maps</a></p>
@@ -31,13 +36,13 @@
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
 </script>
 <script type="module">
-import { GRAPHICS_TRIALS } from './src/graphics.js?build=38';
+import { GRAPHICS_TRIALS } from './src/graphics.js?build=40';
 const KEY = 'ddw3-graphics-checks-v1', PENDING = 'ddw3-graphics-check-pending';
 const states = ['Not tested', 'Worked', 'Slow', 'Failed'];
 let results = {}, pending = '';
 try { results = JSON.parse(localStorage.getItem(KEY) || '{}'); pending = sessionStorage.getItem(PENDING) || ''; } catch {}
 if (!results || typeof results !== 'object' || Array.isArray(results)) results = {};
-results = Object.fromEntries([...GRAPHICS_TRIALS.map(t => t.key), 'full-no-shadows'].map(key => [key, states.includes(results[key]) ? results[key] : 'Not tested']));
+results = Object.fromEntries([...GRAPHICS_TRIALS.map(t => t.key), 'full-no-shadows', 'full-basic-shadows'].map(key => [key, states.includes(results[key]) ? results[key] : 'Not tested']));
 function url(key) {
   const u = new URL('./', location.href);
   u.search = new URLSearchParams({ graphics: 'safe', restore: key, trial: '1', build: '38' });
@@ -50,11 +55,16 @@ function updateNext() {
   if (t) { a.href = url(t.key); a.textContent = 'Next: ' + t.label; a.onclick = () => start(t.key); }
 }
 document.getElementById('shadowFree').onclick = () => start('full-no-shadows');
+document.getElementById('basicShadows').onclick = () => start('full-basic-shadows');
+const basic = document.getElementById('basicShadowResult');
+for (const state of states) { const o = document.createElement('option'); o.value = o.textContent = state; basic.appendChild(o); }
+basic.value = results['full-basic-shadows'];
+basic.onchange = () => { results['full-basic-shadows'] = basic.value; try { localStorage.setItem(KEY, JSON.stringify(results)); } catch {} };
 const combined = document.getElementById('shadowFreeResult');
 for (const state of states) { const o = document.createElement('option'); o.value = o.textContent = state; combined.appendChild(o); }
 combined.value = results['full-no-shadows'];
 combined.onchange = () => { results['full-no-shadows'] = combined.value; try { localStorage.setItem(KEY, JSON.stringify(results)); } catch {} };
-const last = pending === 'full-no-shadows' ? { label: 'Full detail without shadow maps' } : GRAPHICS_TRIALS.find(t => t.key === pending);
+const last = pending === 'full-basic-shadows' ? { label: 'Basic shadows with full detail' } : pending === 'full-no-shadows' ? { label: 'Full detail without shadow maps' } : GRAPHICS_TRIALS.find(t => t.key === pending);
 if (last) { const p = document.getElementById('last'); p.hidden = false; p.textContent = 'Last check: ' + last.label + '. Record its result on this page.'; }
 for (const [i, t] of GRAPHICS_TRIALS.entries()) {
   const card = document.createElement('section'); card.className = 'check'; card.dataset.feature = t.key;
@@ -75,7 +85,7 @@ for (const [i, t] of GRAPHICS_TRIALS.entries()) {
 }
 updateNext();
 document.getElementById('copy').onclick = async () => {
-  const text = 'Graphics checks — build 38\nReported Pixel 10 Pro result: shadow-only trial failed.\nFull detail without shadow maps: ' + results['full-no-shadows'] + '\n' + GRAPHICS_TRIALS.map(t => t.label + ': ' + results[t.key]).join('\n') + '\nBrowser: ' + navigator.userAgent;
+  const text = 'Graphics checks — build 40\nReported Pixel result: original filtered shadow-only trial failed.\nBasic shadows with full detail: ' + results['full-basic-shadows'] + '\nFull detail without shadow maps: ' + results['full-no-shadows'] + '\n' + GRAPHICS_TRIALS.map(t => t.label + ': ' + results[t.key]).join('\n') + '\nBrowser: ' + navigator.userAgent;
   const pre = document.getElementById('summary'); pre.textContent = text; pre.hidden = false;
   try { await navigator.clipboard.writeText(text); document.getElementById('notice').textContent = 'Copied. Paste the results into the chat.'; }
   catch { document.getElementById('notice').textContent = 'Copy the results shown below.'; }

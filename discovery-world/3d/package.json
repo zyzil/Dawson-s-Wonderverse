@@ -9,7 +9,8 @@
     "test:renderer": "node tests/renderer-startup.cjs",
     "test:android": "node tests/android-profile.cjs",
     "test:graphics": "node tests/graphics-trials.cjs",
-    "test:graphics-offline": "node tests/graphics-offline.cjs"
+    "test:graphics-offline": "node tests/graphics-offline.cjs",
+    "test:shadow-pixels": "node tests/shadow-pixels.cjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

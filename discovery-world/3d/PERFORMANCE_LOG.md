@@ -4,6 +4,19 @@ Rule: the game must never get slower. Measure before and after every change on i
 **Desktop numbers come from a software-rendered browser and are NOT iPhone numbers.** Only the in-game report from the
 real iPhone (⚙️ → Performance Test → Copy Test Results) counts as an iPhone measurement.
 
+## Build 40 alternate shadow sampling
+
+- Desktop Chromium / software rendering, Android user agent, 844×390 touch
+  viewport at scale factor 2: full detail with BasicShadowMap starts through
+  Play in 59.9 s, with all seven categories active and the original 1536×1536
+  mobile shadow map. This single run is not a physical Pixel measurement.
+- The isolated rendered-pixel test confirms visible shadow darkening and no
+  GL errors. Compiled game shaders use plain SAMPLER_2D shadow uniforms and
+  nearest depth sampling instead of hardware-comparison shadow samplers.
+- Normal defaults and workload remain unchanged. The explicit trial changes
+  the shadow-sampling method without reducing map size or disabling existing
+  casters/warmup. Physical behavior and long-run speed remain to be verified.
+
 ## Build 39 confirmed Android default
 
 - Physical Pixel 10 Pro: the user confirms the combined full-detail profile

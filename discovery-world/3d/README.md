@@ -4,6 +4,14 @@ This is the full rebuild of Dawson's Discovery World in real 3D. It is a **separ
 
 Play: open `index.html`. It is one self-contained file and works offline. Once merged, it is also on GitHub Pages at `…/discovery-world/3d/`.
 
+## Build 40: alternative shadow-sampling test
+
+`?graphics=full-basic-shadows` restores actual shadow maps using BasicShadowMap
+instead of the previously failing filtered PCF path. The mobile map stays
+1536×1536 and all other full-detail graphics remain enabled. Edges are harder.
+This is an explicit phone test; the regular Android game keeps its confirmed
+shadow-free default. See [graphics checks](graphics-tests.html?build=40).
+
 ## Build 39: confirmed Android graphics fix
 
 The physical Pixel confirms full detail works when shadow maps are disabled.

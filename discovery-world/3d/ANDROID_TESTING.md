@@ -1,5 +1,31 @@
 # Pixel 10 Pro test branch
 
+## Alternative shadow implementation (build 40)
+
+The Pixel 10 Pro XL can render shadows; failure of the existing shadow path does
+not establish a hardware limit. The installed Three.js r187 implementation uses
+hardware depth comparison (`sampler2DShadow`, comparison enabled and linear
+filtering) for PCF shadows. BasicShadowMap instead uses a regular depth sampler,
+nearest filtering and comparison in the fragment shader. This is a different
+sampling path, not a reduction in shadow-map resolution.
+
+Try full detail with the alternative method:
+<https://zyzil.github.io/Dawson-s-Wonderverse/discovery-world/3d/?graphics=full-basic-shadows&trial=1&build=40>.
+
+For an isolated comparison with the previously failed shadow-only trial:
+<https://zyzil.github.io/Dawson-s-Wonderverse/discovery-world/3d/?graphics=safe&restore=shadows&shadow=basic&trial=1&build=40>.
+
+Both keep the original 1536×1536 mobile shadow map and the original warmup logic.
+The full-detail trial restores all other graphics categories. Basic shadows have
+harder edges than the filtered PCF method. The normal Android link keeps the
+physically confirmed shadow-free configuration until this alternative passes
+on the phone. The exact original failure remains a hypothesis about this path,
+not a confirmed hardware-comparison bug.
+
+The desktop test checks real shadow-darkened pixels, actual allocated map size,
+the depth texture's comparison/filter settings and compiled shadow sampler types.
+Its result cannot substitute for a physical Pixel test.
+
 ## Confirmed result and normal Android default (build 39)
 
 The physical Pixel 10 Pro confirms full detail without shadow maps opens and
@@ -138,6 +164,7 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:renderer
 CHROMIUM_PATH=/usr/bin/chromium npm run test:android
 CHROMIUM_PATH=/usr/bin/chromium npm run test:graphics
 CHROMIUM_PATH=/usr/bin/chromium npm run test:graphics-offline
+CHROMIUM_PATH=/usr/bin/chromium npm run test:shadow-pixels
 ```
 
 The Android suite checks portrait image pixels, old blank portrait-cache recovery,

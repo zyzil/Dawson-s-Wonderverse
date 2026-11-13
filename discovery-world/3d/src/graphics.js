@@ -4,7 +4,7 @@
 export function useSafeGraphics(search = location.search, ua = navigator.userAgent) {
   const requested = new URLSearchParams(search).get('graphics');
   if (requested === 'full') return false;
-  return requested === 'safe' || requested === 'full-no-shadows' || /Android/i.test(ua);
+  return requested === 'safe' || requested === 'full-no-shadows' || requested === 'full-basic-shadows' || /Android/i.test(ua);
 }
 
 export const GRAPHICS_TRIALS = Object.freeze([
@@ -20,14 +20,17 @@ export const GRAPHICS_TRIALS = Object.freeze([
 export function getGraphicsProfile(search = location.search, ua = navigator.userAgent) {
   const safe = useSafeGraphics(search, ua), params = new URLSearchParams(search);
   const androidDefault = /Android/i.test(ua) && !params.has('graphics') && !params.has('restore');
-  const requested = new Set(params.get('graphics') === 'full-no-shadows' || androidDefault
-    ? GRAPHICS_TRIALS.filter(t => t.key !== 'shadows').map(t => t.key)
-    : (params.get('restore') || '').split(','));
+  const requested = new Set(params.get('graphics') === 'full-basic-shadows'
+    ? GRAPHICS_TRIALS.map(t => t.key)
+    : params.get('graphics') === 'full-no-shadows' || androidDefault
+      ? GRAPHICS_TRIALS.filter(t => t.key !== 'shadows').map(t => t.key)
+      : (params.get('restore') || '').split(','));
   // Restore requests always start from the safe baseline and are limited to
   // named features. They never change the default profile or saved game.
   const restored = safe ? GRAPHICS_TRIALS.filter(t => requested.has(t.key)).map(t => t.key) : [];
   const flags = Object.fromEntries(GRAPHICS_TRIALS.map(t => [t.key, !safe || restored.includes(t.key)]));
-  return Object.freeze({ safe, restored: Object.freeze(restored), ...flags });
+  const shadowType = params.get('graphics') === 'full-basic-shadows' || params.get('shadow') === 'basic' ? 'basic' : 'pcf';
+  return Object.freeze({ safe, restored: Object.freeze(restored), shadowType, ...flags });
 }
 
 export const GRAPHICS = getGraphicsProfile();

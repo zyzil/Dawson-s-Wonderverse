@@ -37,10 +37,11 @@ const $ = id => document.getElementById(id);
 if (new URLSearchParams(location.search).get('trial') === '1') {
   const link = document.createElement('a'); link.className = 'graphicsTrialBack';
   link.href = 'graphics-tests.html?build=38';
-  const trialLabel = new URLSearchParams(location.search).get('graphics') === 'full-no-shadows'
-    ? 'Full detail, no shadow maps'
+  const trialMode = new URLSearchParams(location.search).get('graphics');
+  const trialLabel = trialMode === 'full-basic-shadows' ? 'Basic shadows · full detail'
+    : trialMode === 'full-no-shadows' ? 'Full detail, no shadow maps'
     : GRAPHICS.restored.map(k => GRAPHICS_TRIALS.find(t => t.key === k).label).join(', ') || 'Working baseline';
-  link.textContent = '↩ Graphics checks · ' + trialLabel;
+  link.textContent = '↩ Graphics checks · ' + trialLabel + (trialMode !== 'full-basic-shadows' && GRAPHICS.shadows && GRAPHICS.shadowType === 'basic' ? ' · basic sampling' : '');
   link.style.cssText = 'position:fixed;top:4px;left:50%;transform:translateX(-50%);z-index:1000;padding:8px 14px;border-radius:20px;background:#fff;color:#4b2a8a;font:700 13px system-ui;max-width:90vw;text-align:center;text-decoration:none;box-shadow:0 2px 12px #0005';
   document.body.appendChild(link);
 }
@@ -73,7 +74,7 @@ function createRenderer(canvas) {
   // instead of returning a normal context-creation error.
   const params = new URLSearchParams(location.search);
   const requested = { antialias: GRAPHICS.antialias, powerPreference: GRAPHICS.power ? 'high-performance' : 'default' };
-  const canvasTrial = (params.has('restore') || params.get('graphics') === 'full-no-shadows')
+  const canvasTrial = (params.has('restore') || ['full-no-shadows', 'full-basic-shadows'].includes(params.get('graphics')))
     && (GRAPHICS.restored.includes('antialias') || GRAPHICS.restored.includes('power'));
   // A canvas trial must fail visibly if its request is rejected. Silently
   // falling back would make an unsupported feature appear to have passed.
@@ -111,7 +112,10 @@ canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); window.__
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.debug.checkShaderErrors = TEST; // (build 24: the shader error check forces the browser to wait for each shader the first time it is used; on only in test mode)
 renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = LIGHT.exposure;
-renderer.shadowMap.enabled = !TEST && GRAPHICS.shadows; renderer.shadowMap.type = THREE.PCFShadowMap; // (filtered, with a blur radius below)
+renderer.shadowMap.enabled = !TEST && GRAPHICS.shadows;
+// Basic samples depth as sampler2D and compares it in the shader. PCF uses a
+// sampler2DShadow / hardware comparison path. The trial changes only this method.
+renderer.shadowMap.type = GRAPHICS.shadowType === 'basic' ? THREE.BasicShadowMap : THREE.PCFShadowMap;
 const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 // build 18 (lighting audit): reflections and soft fill come from the SKY ONLY. (Before, a bright indoor

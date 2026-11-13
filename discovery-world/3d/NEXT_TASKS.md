@@ -4,6 +4,11 @@ Prioritized unfinished work, highest first. Take the top item that can be done w
 remove it here and record it in `DEVELOPMENT_LOG.md`. Add new findings (bugs, ideas, measurements that look wrong) as you go.
 
 ## Waiting for the user
+- **Pixel 10 Pro XL basic-shadow test:** try full detail with
+  `?graphics=full-basic-shadows`. It changes the shadow sampling implementation,
+  not the mobile map's resolution. If needed, use the isolated basic-shadow
+  link in `ANDROID_TESTING.md`. Keep the confirmed shadow-free default until
+  the phone verifies this alternative. Do not infer a hardware shadow limit.
 - **Longer Pixel play session:** full detail without shadow maps is physically
   confirmed working and is now the normal Android profile. Check a longer play
   session and offline reopening when convenient. The precise failing GPU

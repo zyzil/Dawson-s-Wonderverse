@@ -4,6 +4,28 @@ Completed changes and how each was tested, newest first. Each checkpoint says wh
 browser vs. a real iPhone). The routine and rules are in `CLAUDE.md`; unfinished work is in `NEXT_TASKS.md`; measurements
 are in `PERFORMANCE_LOG.md`.
 
+## Checkpoint: build 40 alternate shadow implementation
+- **Requested:** make shadows work on the Pixel 10 Pro XL, rather than treating
+  shadow rendering as a hardware limitation.
+- **Implementation investigation:** installed Three.js r187 PCF uses a
+  `sampler2DShadow` with hardware depth comparison and linear filtering.
+  BasicShadowMap uses `sampler2D`, nearest depth sampling and shader comparison.
+  Add `?graphics=full-basic-shadows` and the isolated
+  `?graphics=safe&restore=shadows&shadow=basic` trial. Keep original map size,
+  warmup, shadow casters and other rendering features intact. No library
+  downgrade, scene simplification or reduction in shadow-map resolution.
+- **Verified (desktop, software rendering):** a pixel comparison finds 85
+  genuinely shadow-darkened pixels (maximum channel-average darkening 94),
+  a 1536×1536 depth map and zero GL errors. The full game starts with all seven
+  categories active. Its allocated shadow map is 1536×1536, comparison is null,
+  filters are nearest, and all 60 active directional shadow sampler uniforms
+  have type SAMPLER_2D. A screenshot shows real character/scenery shadows.
+- The checks page records the new full-detail alternative separately. The normal
+  Android profile remains the physically verified shadow-free one. Pre-change
+  HTML is preserved in `../backups/3D_build40_index.html`.
+- **Pending:** physical Pixel validation; the original driver/shader failure
+  has not been conclusively isolated to hardware comparison.
+
 ## Checkpoint: build 39 confirmed Android default
 - **Physical Pixel confirmation:** the user reports full detail without shadow
   maps opens and plays. The isolated shadow trial failed.
