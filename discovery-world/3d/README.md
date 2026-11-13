@@ -4,6 +4,14 @@ This is the full rebuild of Dawson's Discovery World in real 3D. It is a **separ
 
 Play: open `index.html`. It is one self-contained file and works offline. Once merged, it is also on GitHub Pages at `…/discovery-world/3d/`.
 
+## Build 38 test branch: full detail without shadow maps
+
+The physical Pixel failed the shadow-only trial. `?graphics=full-no-shadows`
+restores the other graphics features together while keeping shadow maps off
+from startup. This combined trial needs physical verification; the regular
+Android game still uses the working lighter profile. See the
+[graphics checks page](graphics-tests.html?build=38) to record results.
+
 ## Build 37 test branch: restore individual graphics features
 
 Use [graphics checks](graphics-tests.html?build=37) to try resolution, shadows,

@@ -36,8 +36,11 @@ const $ = id => document.getElementById(id);
 // Only explicit trial links show this return control, even if startup fails.
 if (new URLSearchParams(location.search).get('trial') === '1') {
   const link = document.createElement('a'); link.className = 'graphicsTrialBack';
-  link.href = 'graphics-tests.html?build=37';
-  link.textContent = '↩ Graphics checks · ' + (GRAPHICS.restored.map(k => GRAPHICS_TRIALS.find(t => t.key === k).label).join(', ') || 'Working baseline');
+  link.href = 'graphics-tests.html?build=38';
+  const trialLabel = new URLSearchParams(location.search).get('graphics') === 'full-no-shadows'
+    ? 'Full detail, no shadow maps'
+    : GRAPHICS.restored.map(k => GRAPHICS_TRIALS.find(t => t.key === k).label).join(', ') || 'Working baseline';
+  link.textContent = '↩ Graphics checks · ' + trialLabel;
   link.style.cssText = 'position:fixed;top:4px;left:50%;transform:translateX(-50%);z-index:1000;padding:8px 14px;border-radius:20px;background:#fff;color:#4b2a8a;font:700 13px system-ui;max-width:90vw;text-align:center;text-decoration:none;box-shadow:0 2px 12px #0005';
   document.body.appendChild(link);
 }
@@ -105,7 +108,7 @@ canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); window.__
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.debug.checkShaderErrors = TEST; // (build 24: the shader error check forces the browser to wait for each shader the first time it is used; on only in test mode)
 renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = LIGHT.exposure;
-renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap; // (filtered, with a blur radius below)
+renderer.shadowMap.enabled = !TEST && GRAPHICS.shadows; renderer.shadowMap.type = THREE.PCFShadowMap; // (filtered, with a blur radius below)
 const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 // build 18 (lighting audit): reflections and soft fill come from the SKY ONLY. (Before, a bright indoor
@@ -123,7 +126,7 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 scene.fog = new THREE.Fog('#e6d2f2', 55, 190); // build 18: atmospheric perspective only in the far distance (no haze over the play area)
 const camera = new THREE.PerspectiveCamera(38, 2, .3, 600); // (build 20: near .3 instead of .1 = 3x the depth precision, no z-fighting on wall details)
 const hemi = new THREE.HemisphereLight('#e4ecff', '#8f8a6a', LIGHT.hemi); scene.add(hemi);
-const sun = new THREE.DirectionalLight('#fff0d8', LIGHT.sun); sun.castShadow = true;
+const sun = new THREE.DirectionalLight('#fff0d8', LIGHT.sun); sun.castShadow = !TEST && GRAPHICS.shadows;
 sun.shadow.camera.layers.enable(1); /* (build 28) layer 1 = low-detail copies that only cast shadows */ sun.shadow.mapSize.set(MOBILE ? 1536 : 2048, MOBILE ? 1536 : 2048); /* (build 22: lighter on phones) */ sun.shadow.radius = 4; /* soft shadow edges */ Object.assign(sun.shadow.camera, { left: -13, right: 13, top: 10, bottom: -5, near: 1, far: 50 }); /* build 17: a tighter box = sharper shadows */ sun.shadow.bias = -.0004; sun.shadow.normalBias = .03;
 scene.add(sun, sun.target);
 // a soft cool light from behind: it outlines everything with a gentle rim, so shapes look rounder and more real

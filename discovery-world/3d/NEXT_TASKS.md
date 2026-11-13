@@ -4,6 +4,11 @@ Prioritized unfinished work, highest first. Take the top item that can be done w
 remove it here and record it in `DEVELOPMENT_LOG.md`. Add new findings (bugs, ideas, measurements that look wrong) as you go.
 
 ## Waiting for the user
+- **Shadow-free full detail:** the physical Pixel's shadow-only check failed.
+  Test build 38's `?graphics=full-no-shadows` combined profile after restarting
+  Chrome. Do not promote its six other features to the Android default until
+  the phone verifies this combination. The original shadow-map trigger remains
+  unisolated within that rendering path.
 - **Individual graphics trials:** the updated Android build works on the Pixel.
   Start build 37's graphics checks with resolution, then record the other
   individual results. Keep the normal Android default on the working profile

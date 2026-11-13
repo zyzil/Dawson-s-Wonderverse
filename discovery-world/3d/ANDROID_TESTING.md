@@ -12,6 +12,26 @@ test mode: speech, learning games, normal saves and gameplay remain active.
 Character pictures are rendered from the game's models ahead of time and embedded
 in the offline HTML; the phone does not have to draw or cache them itself.
 
+## Shadow-free full-detail test (build 38)
+
+The physical Pixel 10 Pro failed the shadow-only trial. This identifies at least
+one failing rendering path, not the exact shader/driver operation or whether
+every other feature will work together.
+
+The next combined trial restores all six other graphics categories and keeps
+shadow maps disabled:
+<https://zyzil.github.io/Dawson-s-Wonderverse/discovery-world/3d/?graphics=full-no-shadows&trial=1&build=38>.
+
+This explicit preset disables shadow-map rendering and shadow-casting lights
+from startup; quality controls cannot re-enable them. It ignores a conflicting
+`restore=shadows` parameter. Normal Android defaults remain on the previously
+working safe profile until the combined trial passes on the physical phone.
+The checks page offers a separate result field for this combined trial and
+skips the known failing shadow category when choosing the next individual check.
+
+After a graphics-reset failure, force-stop Chrome before testing another link
+so a lingering browser block does not invalidate the next result.
+
 ## Restore individual features (build 37)
 
 Open the [graphics checks page](https://zyzil.github.io/Dawson-s-Wonderverse/discovery-world/3d/graphics-tests.html?build=37).

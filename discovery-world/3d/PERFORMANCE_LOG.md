@@ -4,6 +4,20 @@ Rule: the game must never get slower. Measure before and after every change on i
 **Desktop numbers come from a software-rendered browser and are NOT iPhone numbers.** Only the in-game report from the
 real iPhone (⚙️ → Performance Test → Copy Test Results) counts as an iPhone measurement.
 
+## Build 38 full detail without shadow maps
+
+- Physical Pixel report: the isolated shadow-only trial failed. This identifies
+  one failing rendering path; no physical frame-rate or loading time was supplied.
+- Desktop Chromium / software rendering, Android user agent, 844×390 touch
+  viewport at device scale factor 2: the combined shadow-free preset starts
+  through Play in 52.7 s, with resolution, detailed scenery, fur, post-processing,
+  canvas antialiasing and the high-performance request active. There are no
+  uncaught JavaScript errors; portraits are present.
+- Shadow-map rendering and light shadow casting remain off through quality
+  changes, with zero allocated shadow maps. This is a requested experimental
+  profile; normal Android defaults are unchanged. Physical combination testing
+  remains pending.
+
 ## Build 37 independent graphics checks
 
 Desktop Chromium / software rendering, Android user agent, 844×390 touch

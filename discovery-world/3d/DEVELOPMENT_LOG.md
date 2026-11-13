@@ -4,6 +4,24 @@ Completed changes and how each was tested, newest first. Each checkpoint says wh
 browser vs. a real iPhone). The routine and rules are in `CLAUDE.md`; unfinished work is in `NEXT_TASKS.md`; measurements
 are in `PERFORMANCE_LOG.md`.
 
+## Checkpoint: build 38 shadow-free full-detail trial
+- **Physical Pixel report:** the isolated shadow trial broke the game.
+- **Next trial:** `?graphics=full-no-shadows` restores resolution, detailed
+  scenery, fur, effects, canvas antialiasing and the high-performance request
+  together, with shadow maps disabled. This named preset cannot be overridden
+  by an extra `restore=shadows` argument. Shadow maps and light shadow casting
+  are disabled from startup, before any rendering or shader warmup.
+- The checks page records this combined trial separately and skips shadows in
+  its next-check suggestion. The normal working Android default is unchanged.
+  Pre-change HTML is saved in `../backups/3D_build38_index.html`.
+- **Verified (desktop, software rendering):** the combined profile starts with
+  all six requested categories active and shadow rendering off. Switching
+  quality levels 5 → 0 leaves shadow-map rendering off, every light's shadow
+  casting off, and zero allocated shadow maps. Profile filtering, conflict
+  handling, result persistence/export and game-save isolation pass.
+- The exact failing operation within the shadow path and the new combination's
+  behavior on the physical Pixel are still pending.
+
 ## Checkpoint: build 37 individual graphics trials
 - **Requested:** restore the graphics features individually after the physical
   Pixel successfully ran build 36's lighter rendering profile.

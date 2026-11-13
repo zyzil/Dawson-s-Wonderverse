@@ -42,11 +42,13 @@ async function main() {
       const output = {};
       for (const k of keys) output[k] = getGraphicsProfile('?graphics=safe&restore=' + k, ua);
       return { output, safe: getGraphicsProfile('', ua), full: getGraphicsProfile('?graphics=full', ua),
+        shadowFree: getGraphicsProfile('?graphics=full-no-shadows&restore=shadows', ua),
         iphone: getGraphicsProfile('', 'iPhone'), unknown: getGraphicsProfile('?graphics=safe&restore=bogus', ua),
         combined: getGraphicsProfile('?graphics=safe&restore=fur,shadows,fur', ua) };
     }, { keys: KEYS, ua: PIXEL });
     for (const key of KEYS) {
       assert.equal(profiles.safe[key], false); assert.equal(profiles.full[key], true); assert.equal(profiles.iphone[key], true);
+      assert.equal(profiles.shadowFree[key], key !== 'shadows', 'shadow-free preset must exclude only shadows, including with an extra restore request');
       for (const other of KEYS) assert.equal(profiles.output[key][other], other === key, key + ' must change only ' + key);
       assert.deepEqual(profiles.output[key].restored, [key]);
     }
@@ -68,9 +70,12 @@ async function main() {
     const saved = '{"v":1,"marker":"unchanged"}';
     await hub.evaluate(saved => localStorage.setItem('dawsons-discovery-world-3d-v1', saved), saved);
     await hub.getByLabel('Sharper picture result').selectOption('Worked');
-    assert.equal(new URL(await hub.locator('#next').getAttribute('href')).searchParams.get('restore'), 'shadows');
+    assert.equal(new URL(await hub.locator('#shadowFree').getAttribute('href'), base).searchParams.get('graphics'), 'full-no-shadows');
+    await hub.getByLabel('Full detail without shadow maps result').selectOption('Worked');
+    assert.equal(new URL(await hub.locator('#next').getAttribute('href')).searchParams.get('restore'), 'scenery');
     await hub.reload(); await hub.locator('[data-feature="power"]').waitFor();
     assert.equal(await hub.getByLabel('Sharper picture result').inputValue(), 'Worked');
+    assert.equal(await hub.getByLabel('Full detail without shadow maps result').inputValue(), 'Worked');
     assert.equal(await hub.evaluate(() => localStorage.getItem('dawsons-discovery-world-3d-v1')), saved);
     await hub.locator('#copy').click();
     assert.match(await hub.locator('#summary').innerText(), /Sharper picture: Worked/);
@@ -99,16 +104,20 @@ async function main() {
       await page.close();
     }
 
-    for (const key of ['baseline', ...KEYS]) {
+    const cases = ['baseline', ...KEYS, 'full-no-shadows'];
+    const selected = process.env.GRAPHICS_CASES ? process.env.GRAPHICS_CASES.split(',') : cases;
+    assert(selected.length && selected.every(k => cases.includes(k)), 'valid requested game scenarios');
+    for (const key of cases.filter(k => selected.includes(k))) {
       const ctx = await browser.newContext({ userAgent: PIXEL, viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
       const page = await ctx.newPage(), errors = [];
       page.on('pageerror', e => errors.push(e.message));
       const query = new URLSearchParams({ graphics: 'safe', trial: '1' });
-      if (key !== 'baseline') query.set('restore', key);
+      if (key === 'full-no-shadows') query.set('graphics', key);
+      else if (key !== 'baseline') query.set('restore', key);
       const start = Date.now();
       await page.goto(base + '/game?' + query, { timeout: 180000 });
       await page.waitForFunction(() => window.__DDW3 && document.getElementById('loading').classList.contains('done'), null, { timeout: 180000 });
-      if (key === 'scenery') await page.waitForFunction(() => __DDW3.LOWSTATS.hi > 0, null, { timeout: 30000 });
+      if (key === 'scenery' || key === 'full-no-shadows') await page.waitForFunction(() => __DDW3.LOWSTATS.hi > 0, null, { timeout: 30000 });
       await page.locator('#playBtn').tap();
       const actual = await page.evaluate(() => {
         const D = __DDW3, a = D.renderer.getContext().getContextAttributes();
@@ -119,11 +128,19 @@ async function main() {
           oops: !document.getElementById('oops').hidden,
           pictures: [...document.querySelectorAll('.introPick img')].every(i => i.complete && i.naturalWidth === 256) };
       });
-      for (const feature of KEYS) assert.equal(actual[feature], feature === key, key + ': unexpected ' + feature);
-      assert.equal(actual.pixelRatio, key === 'resolution' ? 1.5 : .8);
+      for (const feature of KEYS) assert.equal(actual[feature], key === 'full-no-shadows' ? feature !== 'shadows' : feature === key, key + ': unexpected ' + feature);
+      assert.equal(actual.pixelRatio, key === 'resolution' || key === 'full-no-shadows' ? 1.5 : .8);
       assert.equal(actual.profile.safe, true); assert.equal(actual.oops, false); assert.equal(actual.pictures, true);
       assert(await page.locator('.graphicsTrialBack').isVisible());
       assert.deepEqual(errors, []);
+      if (key === 'full-no-shadows') {
+        const guards = await page.evaluate(() => [5, 0].map(level => {
+          const D = __DDW3; D.G.applyGfx(level);
+          let casters = 0, maps = 0; D.G.scene.traverse(o => { if (o.isLight) { if (o.castShadow) casters++; if (o.shadow?.map) maps++; } });
+          return { enabled: D.renderer.shadowMap.enabled, casters, maps };
+        }));
+        assert(guards.every(g => !g.enabled && g.casters === 0 && g.maps === 0), 'quality changes must not re-enable or allocate shadow maps');
+      }
       console.log('PASS real game single feature:', key, JSON.stringify({ ms: Date.now() - start, ...actual }));
       await ctx.close();
     }
