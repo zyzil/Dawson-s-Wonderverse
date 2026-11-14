@@ -5,19 +5,7 @@
   "description": "Dawson's Discovery World in real 3D (Three.js). Builds to one offline HTML file.",
   "scripts": {
     "build": "node build.mjs",
-    "test": "node tests/smoke3d.cjs",
-    "test:renderer": "node tests/renderer-startup.cjs",
-    "test:android": "node tests/android-profile.cjs",
-    "test:graphics": "node tests/graphics-trials.cjs",
-    "test:graphics-offline": "node tests/graphics-offline.cjs",
-    "test:shadow-pixels": "node tests/shadow-pixels.cjs",
-    "test:shadow-check": "node tests/shadow-check.cjs",
-    "test:gpu-work": "node tests/gpu-work.cjs",
-    "test:shadow-preflight": "node tests/shadow-preflight.cjs",
-    "test:shadow-world": "node tests/shadow-world.cjs",
-    "test:packed-shadows": "node tests/packed-shadows.cjs",
-    "test:uniform-bones": "node tests/uniform-bones.cjs",
-    "test:receiver-programs": "node tests/receiver-programs.cjs"
+    "test": "node tests/smoke3d.cjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

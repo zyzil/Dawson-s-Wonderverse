@@ -1,12 +1,19 @@
 // Tiny synthesiser: every sound is made in code (no sound files, no downloads).
 export const NOTES = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51];
 export const Sound = {
-  on: true, ac: null, noiseBuf: null, unlocked: false,
+  on: true, musicEnabled: true, effectsEnabled: true, _musicChannel: false, ac: null, noiseBuf: null, unlocked: false,
+  // The callback schedules its tones synchronously (including future AudioContext delays).
+  withMusic(schedule) {
+    const previous = this._musicChannel;
+    this._musicChannel = true;
+    try { return schedule(); } finally { this._musicChannel = previous; }
+  },
+  channelEnabled() { return this.on && (this._musicChannel ? this.musicEnabled : this.effectsEnabled); },
   ensure() {
     if (!this.on || !this.unlocked) return null;
     try {
       this.ac = this.ac || new (window.AudioContext || window.webkitAudioContext)();
-      if (this.ac.state === 'suspended') this.ac.resume();
+      if (this.ac.state !== 'running' && this.ac.state !== 'closed') this.ac.resume(); // (build 36: iPhone uses 'interrupted' after a call or the app was in the background, not only 'suspended')
       if (!this.noiseBuf) {
         const len = this.ac.sampleRate * .6, buf = this.ac.createBuffer(1, len, this.ac.sampleRate), d = buf.getChannelData(0);
         for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
@@ -16,6 +23,7 @@ export const Sound = {
     } catch (e) { return null; }
   },
   tone(freq = 560, dur = .1, type = 'sine', vol = .06, slide = .67, delay = 0) {
+    if (!this.channelEnabled()) return;
     const ac = this.ensure(); if (!ac) return;
     try {
       const t0 = ac.currentTime + delay, o = ac.createOscillator(), g = ac.createGain();
@@ -27,6 +35,7 @@ export const Sound = {
     } catch (e) { }
   },
   noise(dur = .3, f1 = 600, f2 = 2400, vol = .05, delay = 0) {
+    if (!this.channelEnabled()) return;
     const ac = this.ensure(); if (!ac) return;
     try {
       const t0 = ac.currentTime + delay, s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();

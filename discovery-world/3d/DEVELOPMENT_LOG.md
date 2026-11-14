@@ -4,374 +4,256 @@ Completed changes and how each was tested, newest first. Each checkpoint says wh
 browser vs. a real iPhone). The routine and rules are in `CLAUDE.md`; unfinished work is in `NEXT_TASKS.md`; measurements
 are in `PERFORMANCE_LOG.md`.
 
-## Checkpoint: build 48 classic colour-packed Basic shadow candidate
-- **New phone result:** build 47 completed all 13 probes at spawn, both
-  underground views and the sky view (four complete views), with nine local
-  warmup batches. At (406,0) castle, eight probes completed before instanced
-  scenery receiving reset: one receiving/feature draw, zero shadow updates,
-  one uniform-bone character draw, zero bone-texture draws. The castle's depth,
-  nonreceiving, standard, physical and custom checks passed. Earlier groups
-  with zero actual draws remain unproved; this is not a definitive driver cause.
-- Add opt-in `shadowstorage=rgba` for the Basic receiver-shader mode, retaining
-  `bones=uniform` in its phone link. The guarded r187 adapter allocates an RGBA8
-  nearest-filter shadow target with a 24-bit depth renderbuffer and no depth
-  texture. Built-in MeshDepthMaterial uses RGBADepthPacking, including its
-  cutout/displacement variants. Receiving shaders decode r187's packed component
-  order before the original Basic depth comparison. WebGLLights already binds
-  the colour texture when no depth texture exists. Keep original geometry,
-  GPU instancing, bone uniforms, materials, casts/receives and 1536 map size.
-- Packed/native mode changes reallocate maps, invalidate/reselect cached shader
-  variants and select separate depth materials. Rig caches still work. Native
-  modes keep their original depth texture and shader branch. Unsupported point
-  shadow lights, non-Basic maps or custom depth materials stop explicitly in
-  this opt-in mode; the game uses the supported directional built-in path.
-  No dependency files are edited. Preserve previous HTML in
-  `../backups/3D_build48_index.html`.
-- Preflight reports identify actual shadow storage; world probes count packed
-  feature draws and include up to three instanced receiver descriptors, using
-  CPU metadata only. Existing report/history, save and offline keys survive.
-  Keep Android's verified shadow-free and iPhone's original defaults.
-- Focused shader/pixel proof: 121 draws across physical/shared materials,
-  coloured instancing, animated 1/3-bone skins, actual fur and cutout casters,
-  including fresh packed initialization and native/packed rollback. Maximum
-  channel difference 0; animation changes 371 channels. Actual sampler binding
-  points to the colour map in packed mode; the framebuffer has a depth
-  renderbuffer, no depth texture and nonuniform encoded colour depth. GL error 0.
-- Full-game, cleanup and timing results are in PERFORMANCE_LOG.md. Physical
-  compatibility and the full gameplay suite remain pending; keep the fork PR draft.
+## Checkpoint: build 48 — climb into the rocket, the big red button, a real lift-off
+- **The bug the family found:** PAW at the rocket blew bubbles. The Lab Gardens rocket (build 45) was placed at x 698, exactly on the bubble fountain. Both had PAW targets at 698, and the fountain's came first in the list. The rocket and its pad now stand at x 686, between the frog pal (678) and the fountain. `ROCKET_PAD` follows it, so flying home lands at 688.5.
+- **The rocket ride** is a new ride type in `main.js`, `P.ride = { type: 'rocket', phase }`:
+  - **board:** she walks to the door, hops in and disappears. Her portrait shows in the round window as a sprite; the sprite shader is already warmed, so it needs no new shader. Crown, wand and pets stay behind (`G.playerHidden`).
+  - **in:** the planet pictures appear. Picking one shows `#blastBtn`, a big pulsing red button with the chosen planet as a badge, and the voice says "Press the big red button!". PAW also presses it. JUMP or ✖ climbs out.
+  - **count:** a three-second 3-2-1 with rumble (shake), smoke from the pad and the flame flickering on.
+  - **lift:** the rocket accelerates up on a two-cone flame with sparks and smoke. The camera rides up with it, pulled back a little (`G.camLift`, `camT.rk`).
+  - **land:** at the destination the rocket starts 26 m up and slows to a gentle touchdown with its flame and a puff of smoke. Then she climbs out beside it.
+  - The timing uses the wall clock, so a slow screen doesn't stretch the ride.
+- **Every rocket registers itself:** Earth's in `expansion.js`, each planet's in `space.js` (`registerRocket`; it is marked dynamic so scenery slicing never hides it). Because of this the same ride works from every planet. If no rocket is near (the old test path), the picker still flies you straight there.
+- **Verified (desktop, software rendering):**
+  - A scripted run of PAW → in → Mars → red button → countdown → lift → landing → out → fly home → ✖ climbs out: no page errors, shader programs unchanged (103 at real settings, 138 in `?test`), and no slow shader waits measured around the flight.
+  - Screenshots at frozen moments of the countdown, lift-off, high flight and Moon landing.
+  - The button sits beside the rocket and overlaps no control at 844×390 or 1024×768.
+- **Smoke test:** new checks cover PAW entering the rocket (not bubbles), the red button appearing without flying, and the countdown then lift-off; plus landing and climbing out on the Moon. The planet tests now wait for the ride to finish (`flyTo`).
+- **Also from the family's screenshots:**
+  - **Uranus Rollers sank half into the ground.** The cube spun around its bottom edge. It now turns about its own middle and rises onto its corner as it tips (height = 0.4·(|cos θ|+|sin θ|) + 0.05), so it rolls like a real box. The antenna was removed: it would poke into the ground upside down. Measured: the lowest point over 10 s of rolling stays 0.05 m above the ground.
+  - **Crooked farm roofs:** the barn, the chicken coop and the pink stand at x −35 had the same bug as the house roof (turned, then squashed along the wrong axis). They are now turned in the geometry first. Their base corners were checked numerically: true rectangles (barn 7.1 × 4.4 m over a 7 × 4 m barn).
+  - **The crown and wand floated high above her on the whale:** she is drawn smaller on rides. They now follow her drawn body, its position and size (`G.playerBody`).
+- **Test fixes (the game was not at fault):**
+  - The marble-ramp tap check now waits until the camera has stopped moving.
+  - The rocket check reads the phases the game itself ran (`G.rkLog`), because the slow test browser can skip the short test-mode countdown between frames.
+- **Not yet tried on the real iPhone.**
 
-## Checkpoint: build 47 uniform bone palette shadow candidate
-- **Physical evidence:** build 46 completed all casting, the nonreceiver surface
-  check, physical receivers (19 draws) and instanced receivers (1 draw), then
-  lost the context on skinned-body receiving (1 actual receiving/feature draw,
-  frozen depth map). Standard/custom groups with zero draws remain unproved;
-  fur was not reached. This narrows this run, not a confirmed driver diagnosis.
-- Add explicit `bones=uniform` only for the Basic receiver-shader trial. The
-  pinned ESM adapter replaces bone texelFetch with an array of mat4 uniforms.
-  Keep the normal skinning weights, bind transforms, normals, animation, fur
-  materials and all shadow behavior. Both depth and color passes use palettes.
-  Cache rig size and refresh shared-material variants on mode/rig changes.
-- Reserve 128 vertex uniform vectors for other shader data, cap at 64 bones,
-  and stop with an explicit rig/limit error if a rig cannot fit; do not silently
-  drop animation or switch a receiver back to the failing texture combination.
-  Cache correctly sized Float32Array views per skeleton with a WeakMap, updating
-  if the normal texture path replaces the backing array. No per-frame CPU
-  skinning, new geometry or per-draw GPU queries are introduced.
-- Probe reports add uniform/texture bone draw counts and largest submitted rig
-  for this mode. The hub retains all previous comparisons and save keys. Normal
-  Android stays full-detail/shadow-free; iPhone retains its original settings.
-  Preserve the previous HTML in `../backups/3D_build47_index.html`.
-- Animated pixel/shader test: 99 draw observations including shared materials
-  with 1/3-bone rigs, nonidentity bone transforms, real fur shells and mode
-  rollback, including a fresh uniform-only draw before texture allocation.
-  Maximum channel difference 0 against bone textures; poses change
-  371 channels. Uniform programs expose boneMatrices and no boneTexture;
-  real receivers keep directional shadow samplers. GL error is zero.
-- Full-game, cleanup, default and performance results are in PERFORMANCE_LOG.md.
-  Physical confirmation and the full gameplay suite remain pending; keep draft.
+## Checkpoint: build 47 — every planet its own place, with aliens; builds 46 fixes
+- **The family asked** to land on the gas giants too, with fitting activities and different aliens.
+  - The gas giants now have walkable swirly cloud ground in their own colours. The voice says, kindly, that each is really made of gas; gravity is still the real 1-bar value.
+  - Every place has its own sky colour.
+- **Aliens**, one kind per planet: Moonbeams (one-eyed hoppers), Sizzlers (spiky, sunglasses), Floaties (jellyfish), Marslings (three-eyed), Bloonies (balloons), Ringlets (spinning, ringed), Rollers (cubes rolling sideways), Windies (wisps), Heartlings (hearts). Tap one and it greets you with its own sound.
+- **Activities that fit each planet:**
+  - Moon: flag, five moon rocks to count, Earth.
+  - Mercury: the sizzling Sun, a day/night button.
+  - Venus: erupting volcanoes, a thermometer.
+  - Mars: the driving rover, a dust devil, Olympus Mons.
+  - Jupiter: the Great Red Spot, lightning, counting its four big moons.
+  - Saturn: ring-ice stepping stones, the hexagon storm, the rings.
+  - Uranus: a ball rolling on its side, diamond rain.
+  - Neptune: a windsock and gusts that push you, Triton's geyser.
+  - Pluto: the slippery icy heart, Charon.
+- **Build 46:**
+  - **The flying whale vanished:** it had been filed into a scenery section, which is hidden far from the camera. It is now marked as moving. Reproduced on build 45 after flying 160 m; fixed.
+  - **The house roof was crooked from above:** the scale was applied before the 45° turn. The turn is now baked into the shape.
+- **Verified (desktop):**
+  - Full smoke test 180/180 (new: every planet has its alien and 2+ activities; the whale stays in the scene while flying).
+  - Device test 11/11; unit tests 25/25; programs 103.
+  - Jupiter's hop is measured by the game every physics step (a slow test frame could miss it).
 
-## Checkpoint: build 46 receiver-specific shadow shader variants
-- **New physical result:** build 45 reset at the starting view (5,0), aspect
-  0.5428921569, after all depth casting checks passed. The failed color batch
-  had 42 color draws and zero receiving draws (`surfaces: shadow receiving off`).
-  The earlier build 44 run completed that step, so do not treat underground as
-  a reliable or unique trigger. Mesh arrival timing/aspect also differ.
-- Installed r187 WebGLPrograms enables shadow shader chunks whenever renderer
-  shadows and a casting light exist, independently of object.receiveShadow.
-  WebGLRenderer still has active shadow samplers to bind when that uniform is
-  false. Thus the prior runtime-off probe did not eliminate compiled shadow
-  code or bindings; native sampling/driver specialization remains unisolated.
-- Add opt-in `shadowcode=receivers` for Basic shadows. A guarded esbuild adapter
-  modifies the pinned npm ESM renderer: include the shadow feature only for
-  actual receivers, retain the effective flag/mode in material program metadata,
-  and select the correct cached variant when receiving or mode changes. Shared
-  materials remain shared; shader variants use the existing shadow-feature cache
-  bit. Actual receivers and depth casting retain their original functionality.
-- The adapter requires exactly Three.js 0.187.0 and one exact match at each of
-  three sites, and fails a build if it is not applied exactly once. It never
-  edits node_modules. The standalone original tiny check remains unadapted.
-- Existing world probes with the new mode count draws whose selected program
-  includes the shadow feature, without extra per-draw GPU queries. Runtime-off
-  surface probes now require zero such draws. Preserve onAfterRender callbacks
-  as well as the earlier state snapshots. Old modes and normal Android/iPhone
-  graphics are unchanged; full detail, AA and 1536 shadow size stay enabled in
-  this explicit trial. Preserve HTML in `../backups/3D_build46_index.html`.
-- **Focused proof:** actual compiled uniforms disappear for nonreceivers and
-  remain for receivers; shared/custom/skinned materials, receiving toggles and
-  mode rollback produce identical pixels across 54 draw observations. The full
-  game uses the reported aspect in its new browser case; detailed validation
-  and timing are recorded in PERFORMANCE_LOG.md. The physical fix, exact driver
-  cause and full gameplay suite remain pending; keep draft and normal Android
-  on its verified shadow-free configuration.
+## Checkpoint: build 45 — a warmer voice, and a rocket to the planets with real gravity
+- **Voice:**
+  - Picks the most natural installed voice: Premium, then Enhanced (on iPhone the quality is in the voice id), then kid-friendly names (Zoe, Ava, Nicky, Samantha…), never "compact".
+  - Natural pitch (1.04, a little brighter on excited sentences, 1.1) instead of 1.15, which made synthetic voices sound more robotic; an unhurried pace (0.9–0.96); "..." becomes a pause.
+  - ⚙️ lists the installed voices: tap one to hear "Hi Dawson! Let's go and play!" (remembered).
+  - The panel tells grown-ups how to download the free Ava/Zoe (Premium) voices on the iPhone.
+  - Real device check needed: voices differ per phone.
+- **The space rocket** (`src/space.js`):
+  - **Launch pad:** in the Lab Gardens (x 698). Tap the rocket or PAW for a picture menu: Earth (home), the Moon, Mercury, Venus, Mars, Jupiter, Saturn (with rings), Uranus, Neptune and Pluto.
+  - **Each place:** its own scene at x 5000 + 200·i, built on first visit and hidden otherwise:
+    - Moon: craters, Earth in the sky and a flag.
+    - Mercury: the Sun huge in the sky.
+    - Venus: a hazy yellow sky.
+    - Mars: red dust and a rover to tap.
+    - Gas giants: a floating platform in the clouds, with cloud bands below, the Great Red Spot, and Saturn's rings.
+    - Pluto: the white heart and Charon.
+  - **Every place:** a striped metre pole, and the voice reports each new jump height.
+  - **Real gravity:** game gravity × (g / 9.81), with g = Moon 1.62, Mercury 3.70, Venus 8.87, Mars 3.71, Jupiter 24.79, Saturn 10.44, Uranus 8.69, Neptune 11.15, Pluto 0.62 m/s². For the gas giants g is at the 1-bar cloud tops; they have no surface, and the voice says you're on a floating platform.
+  - **Measured jump heights** (same jump): Earth 1.7 m, Moon 11.1, Mars and Mercury 4.8, Pluto 29, Jupiter 0.5, Saturn 1.5, Venus 1.8, Uranus 2.0, Neptune 1.4 m.
+  - **Earth** in the menu flies you home to the launch pad.
+  - No console errors; programs 103.
+- **Build 44** (speed fixes from the real iPhone report) passed 172/172 and 11/11, and ships together with this build.
 
-## Checkpoint: build 45 underground and remaining local-view diagnostics
-- **Physical build 44 result:** all 13 starting-view probes passed. Actual depth
-  draws: static 100, instanced 2, skinned 1, all casters 103. Receiving draws:
-  physical 19, instanced 1, skinned 1; standard, custom and fur had zero receiving
-  draws and remain unproved. The original combined draw passed. Six subsequent
-  local batches completed, then (20, -6), the first underground view, reset.
-- Add explicit `worldprobe=areas`: retain the starting-view checks, preserving
-  the successful setup sequence, and check (20, -6), (45, -6), (54, 9.5),
-  (406, 0), (2010, 0) before their normal local draw. Avoid repeating checks in
-  the three house views already passed on the phone. No rendering/shader path
-  or quality settings are replaced by this diagnostic extension.
-- Include view coordinates and camera aspect in each full check report and
-  phase label. Keep full details for the latest view, plus compact per-view
-  completion/count/restoration history, so a later failure preserves the earlier
-  successes without duplicating every probe. The old `worldprobe=1` still checks
-  only the starting view; normal profiles never run these checks.
-- Verify in a portrait browser: earlier desktop landscape results did not match
-  the phone's narrow visible area. Actual per-probe draw counts remain necessary;
-  a globally enabled group outside the view is not a verified group.
-- Preserve pre-change HTML in `../backups/3D_build45_index.html`. The hub records
-  this run separately; saves are untouched. A small renderer test now completes
-  one view then loses context in another, verifying that first-view history and
-  state restoration survive. Successful two-view checks retain identical output.
-- Focused validation and timings are in PERFORMANCE_LOG.md. Physical area-check
-  results and the full gameplay suite remain pending; keep the fork PR draft and
-  normal Android on its confirmed shadow-free settings.
+## Checkpoint: build 44 — fixes from the real iPhone report (build 43)
+- **The report:**
+  - The flat 30 fps cap is gone (likely Low Power Mode before): castle, house and studio 56–60 fps, but park 44 and creature area 40 fps at the lightest level.
+  - Frame work was only 4 ms, so the graphics chip is the limit.
+  - One 274 ms freeze "(Art Plaza)"; area changes 59–108 ms; the pool works on the phone.
+- **The lightest graphics levels (4–5) now draw less:**
+  - trees go to their simple shape beyond 8 m (was 16);
+  - no fur layers at all;
+  - grass drawn at 70% / 50% of the phone amount.
+  - Desktop triangles at level 5 (build 43 → 44): park 560k → 436k (−22%), creatures 669k → 469k (−30%), castle 476k → 404k.
+  - Screenshots look nearly the same.
+- **The Art Plaza freeze (caused in build 43):**
+  - Removing the neighbourhood signposts meant nothing drew a picture sprite early, so the first one met in play (the 🏠 at the Art Plaza end) waited for its shader (`getProgramParameter`, 550 ms on desktop).
+  - The start-up rehearsal now draws one sprite (and the sky stairs).
+  - Verified: walking 760 → the stairs has 0 long tasks.
+  - The new `tests/perf/shaderwaits.cjs` checks the whole train line, the sky, the pool and the underwater world: no shader waits anywhere.
+- **The report shows the real build number** (build 43 still said 42).
 
-## Checkpoint: build 44 automatic world shadow checks
-- **New physical evidence:** build 43 passed both simple preflight probes on
-  the Pixel, with zero GL errors, retained 1536×1536 Basic map, game AA=true
-  canvas and exact 64×32 HalfFloat/four-sample/depth startup buffer. It then
-  reset at the first real local view (5, 0), before a world batch completed.
-  Initialization order is not a sufficient fix; the buffer alone is not enough
-  to reproduce this Basic failure.
-- Add explicit `worldprobe=1` to the Basic/preflight trial. At that same first
-  local view, separate world shadow depth casting from world color rendering.
-  r187 honors the existing sun.shadow.camera layer 1 independently of main
-  camera layers, so an unused camera layer can gather the same lights and cast
-  actual world geometry with zero world color draws. No library patch or
-  replacement surface material is used.
-- Test static, instanced and skinned casters, splitting cutout/displaced meshes
-  where present; then test all casters. Freeze the complete depth map, draw the
-  original surface shaders with receiving off, enable receiving per standard,
-  physical, custom, instanced, skinned and fur group, then all surfaces. Finally
-  submit the original combined cast/color draw. Fence every submitted batch.
-- Reports record per-step completion, enabled counts, actual shadow/color draws
-  and GL errors. Actual receiving draws are counted separately from all color
-  draws; a group with zero draws does not establish support. Refresh
-  snapshots before each step to include newly loaded meshes. Restore cast and
-  receive flags, callbacks, light layer masks, render target, update flags and
-  info settings in finally, including after loss. Keep light.castShadow and
-  shader defines unchanged; receiveShadow is a runtime uniform.
-- Trial startup errors now offer the same copyable report as context loss. The
-  hub stores these results separately. Preserve pre-change HTML in
-  `../backups/3D_build44_index.html`. Normal Android remains shadow-free; normal
-  iPhone and all other explicit trial profiles retain their settings.
-- **Validation:** small actual-renderer tests prove zero world color draws in
-  depth steps, zero depth draws in frozen-map surface steps, identical final
-  rendered pixels after restoration, and cleanup during loss. Full-game focused
-  validation and measurements are recorded in PERFORMANCE_LOG.md. Physical
-  world-check results and the full gameplay suite remain pending; keep draft.
+## Checkpoint: build 43 — the family's list
+1. **Camera zoomed out:** CAM_DIST 7.6 → 9.0, plus an automatic pull-back at the Block Builder (like the castle's), so the whole 12 × 5 m wall is on screen. Before, the top rows were cut off.
+2. **No more activity signs:**
+   - The 7 Learning Corner signposts are now **play spots**: a glowing, sparkling ring on the ground with the corner's 3D toy floating and turning above it. Tapping still opens the games.
+   - The floating yellow cone (it covered things) is replaced by a glowing **"stand here" circle** on the path.
+   - **Every activity nearby twinkles** now and then (shared particles).
+   - The neighbourhood signposts are removed (the map and train show every place).
+   - Train-station signs are smaller and lower.
+3. **A real seesaw** (Toy Town, x 638): the near end dips down so you can step on; it rocks you between about 0.2 and 1.9 m with a teddy on the other end; JUMP at the top is a super bounce (reached 5.9 m).
+4. **The world ends climb into the sky:**
+   - **Rainbow stairs:** both ends (x 908 → 932 and −666 → −690) have 24 rainbow cloud steps (0.4 m, walkable) up to a landing at 9.6 m. A rainbow gate there takes you to the Sky Kingdom. The world is a little wider (EXP −698 … 940); saved positions are never restored inside the stairs.
+   - **A bigger Sky Kingdom:** the cloud path runs on from x 8 to 45.6. New activities: the moon (tap it and 10 stars light up, counted), cloud sheep (rain, then a rainbow), colour balloons (pop one and it says its colour), and bouncy clouds up to a high cloud with a star. No new star bits, because saved star bits are stored by list position.
+5. **Steer the sky whale:**
+   - ◀ ▶ / sideways drag fly it anywhere over the world (11 m/s); ▲ ▼ fly higher and lower (6–32 m). Areas stream in as you fly.
+   - ▲ no longer throws you off; JUMP hops off and you float down gently (fall speed capped).
+   - The camera pulls back and looks down while flying.
+   - After a long flight the whale swims home out of sight.
+6. **The deep pool and the underwater world** (`src/sea.js`):
+   - A Splash Pool next to the beach (x −12 to −4). Tap it to dive into a deep tiled pool (its own place at x 3000+, built on first dive, hidden otherwise).
+   - Swim down; a tunnel at the bottom leads into a 120 m underwater world: colour coral, 4 fish schools, a sea turtle, an octopus that squirts ink, glowing jellyfish, a shipwreck with a treasure chest (count 5 pearls), a clam, dolphins, a big whale far away, starfish, crabs, a shrimp, seaweed and bubbles.
+   - Swim up to the top of the pool to climb out.
+- **Merged-code lessons:**
+  - `c.sprite` is now `c.toy` (3D toy models).
+  - Every emoji in `expansion.js`, `learn.js` and now `sea.js` needs a toy model; the test caught 💕, 🗺️, 🪸 and 🏊, even inside comments and messages.
+  - `G.sea` is the beach's sea plane, so the underwater world is `G.deepSea`.
+- **Verified (desktop):**
+  - Every feature by script: builder wall fits; seesaw heights 0.17 → 1.88 and a 5.9 m bounce; both stairs climbed and the gate → sky; whale flew 43 m right and up to 25 m, ▲ kept the ride, JUMP → float; pool → tunnel → all 10 sea activities → climb out, with shader programs 104 → 104.
+  - `ba.cjs` 42 → 43, two runs each: park 10.9 → 11.1, creatures 8.7 → 9.6, castle 8.7 → 9.7 ms average. Each view was faster in one run and slower in the other: within noise. 0 long tasks; programs 102 → 102.
+  - Unit tests 25/25 (the toy-model test now also scans `sea.js`).
 
-## Checkpoint: build 43 canvas-first shadow initialization
-- **New physical evidence:** build 42 resets at `Warming local view at 5, 0`.
-  Report: Basic sampling, AA=true, high-performance preference, one local pass
-  attempted and zero completed batches. No wide passes ran. GPU pacing and
-  removing the wide shadow volumes are not a sufficient fix.
-- The working small scene first allocates/draws its Basic map on the canvas;
-  the game first enters a 64×32 HalfFloat, four-sample target with a depth
-  texture. Canvas attributes and world materials/complexity also differ, so
-  the exact failing condition is still unproved.
-- Add explicit `preflight=1` to the Basic/local trial. Drain earlier queued
-  startup work, move the actual sun into a temporary two-mesh scene, draw on
-  the actual game canvas, then draw in the exact warmup target. Fence each
-  draw and retain the same sun.shadow.map for the game. Compile/warm the full
-  scene afterward. This tests initialization order and records which simple
-  stages completed without changing quality or silently lowering canvas options.
-- Share the unchanged target constructor between the checks and the existing
-  three warmup call sites, preserving their original buffer options. Restore
-  light parents/positions, render target and shadow update flags in finally;
-  dispose the temporary meshes/material/target, retaining only the shadow map.
-- The report contains per-probe framebuffer settings, completion flags, GL
-  errors and map size/comparison. The hub records this trial separately. The
-  previous no-preflight comparison remains available. Normal Android retains
-  the confirmed shadow-free profile, and original iPhone defaults remain.
-- Preserve pre-change HTML in `../backups/3D_build43_index.html`.
-- **Validation:** actual map reuse, framebuffer draws, cleanup on context loss,
-  full-game configuration and focused checks are recorded in PERFORMANCE_LOG.md.
-  Physical canvas-first behavior and the full gameplay suite remain pending;
-  keep the fork PR draft and do not claim a confirmed GPU driver root cause.
+## Checkpoint: build 42 — freezes say where; Clover the goat; friends play together (built on top of builds 40 and 41 from main)
+- **The performance report says where each freeze over 250 ms happened:** the place name (Park, Toy Town, Ocean Pier…), the house, castle or underground, any ride, or a learning game. The build 36 iPhone report had two real 309–339 ms freezes with no location.
+  - Verified (desktop): two deliberate 400 ms freezes are reported as "(Ocean Pier)" and "(in the house)". Other examples seen: "Park", "Playhouse, riding the slide".
+- **Clover the mountain goat 🐐** lives on the Adventure Trail (x 494), the only neighbourhood that had no pal. Three taps to befriend; follows you; appears in 🐾 (9 pals); the save accepts `goat`.
+  - Verified (desktop): befriends and follows to the park; no console errors. Shader programs on that route are 103 with and without Clover (build 39 gives the same 103), so no new shaders.
+- The report's build number is 42.
+- **Friends who follow you play together:** when two or more pals follow you and you stand still, now and then two neighbours face each other and hop, with hearts and a giggle (no new objects or shaders).
 
-## Checkpoint: build 42 bounded Basic shadow startup
-- **Physical evidence:** the Pixel 10 Pro XL draws the minimal scene with Basic
-  at 512×512 and 1536×1536. PCF at 1536 resets before its first shadow draw's
-  completion fence signals. Report: ANGLE / Imagination PowerVR D-Series
-  DXT-48-1536, Chrome 157.0.8103.50, Android 17.0.0. This reproduces one failing
-  filtered path without the game's assets/effects/warmup. It does not identify
-  a specific ANGLE vs native-driver instruction or explain every full-game reset.
-- The original Basic full-game trial also failed. Change its startup only:
-  warm shadows in 11 local views (including spawn, park, creature area and the
-  original indoor/underground/sky/castle views), then retain all five wide color
-  rehearsals without widening or updating their shadow maps. Keep all graphics
-  categories, live shadow casting and the 1536×1536 mobile Basic map.
-- Each of the 16 submitted startup batches waits for a GPU fence asynchronously;
-  no gl.finish or blocking wait. Defer newly loaded-object rehearsals and the
-  15-second start fallback until these batches finish, preventing interleaving
-  draws. Restore temporary visibility, detached agents, render targets and sun
-  state in finally, including on loss. Stop rendering after context loss.
-- Explicit Basic-shadow profiles use the new startup; `warmup=original` retains
-  the failed comparison path. Regular Android keeps the confirmed shadow-free
-  settings, and regular iPhone retains its original filtered shadow settings.
-- Trial error screens offer Copy graphics report, including the last submitted
-  stage (not an asserted GPU cause), accepted canvas request and GPU identity.
-  Results remain manual and game progress is untouched. Preserve pre-change HTML
-  in `../backups/3D_build42_index.html`.
-- **Validation:** focused checks and desktop/software measurements are recorded
-  in PERFORMANCE_LOG.md. Physical full-game validation and the full gameplay
-  smoke suite are pending; keep the fork PR draft.
+## Checkpoint: build41 — 3D pet nursery, creative play and world improvements
 
-## Checkpoint: build 41 small physical-device shadow diagnostic
-- **New physical evidence:** the full-detail BasicShadowMap trial also resets
-  the Pixel 10 Pro XL. Its screenshot shows our context-loss handler, not a
-  browser diagnosis of low memory. Basic sampling is not a verified fix.
-- Both installed r187 Basic and PCF still allocate native unsigned-integer depth
-  textures. The game also rehearses wide whole-world shadow views during
-  startup. Neither the shared depth path nor startup workload has been isolated
-  as the cause; don't attribute the reset to memory, hardware limits or PCF alone.
-- Add a self-contained `shadow-check.html` using the same pinned Three.js,
-  one cube, one floor, one shadow-casting light, a fixed 384×256 picture and no
-  game assets, environment generation, effects or whole-world rehearsal.
-  Comparisons change only map size (512 → 1536) then sampling (Basic → PCF).
-- The report includes browser/GPU details, accepted canvas options, allocation
-  size, last submission stage and a GPU fence confirming completion of the first
-  shadow draw. Context loss preserves the report without guessing its cause.
-  Copying is manual; no report is sent automatically and no game storage is used.
-- Keep the physically verified shadow-free Android game unchanged. Correct its
-  misleading memory wording. Preserve pre-change HTML in
-  `../backups/3D_build41_index.html`; cache the new document separately.
-- **Validation:** focused browser checks and measurements recorded in
-  `PERFORMANCE_LOG.md`. Physical small-scene result and full gameplay smoke
-  suite remain pending; keep the fork PR draft.
+- Three original nursery pets hatch through picture-led play. Feeding, bathing, brushing, catch, optional bedtime, per-pet room colors, saved outfits and blankets use the same sculpted 3D pets, toy materials and real furnishings as the existing game. No declining needs, waiting or absence penalties.
+- A shared viewport moves the existing renderer into native playrooms and restores it on close. World simulation pauses; cache and input ownership remain separate. Artwork is saved compactly and applied to actual fabric and framed surfaces.
+- All41 learning activities use native 3D toys while retaining levels, demonstrations, voice, rewards and interaction targets. Physical world animals, fish, shells, gems, flowers and prizes are native cached single-draw models. Picture navigation, clues and editable artwork remain interfaces/surfaces.
+- Fixed saved-builder removal after scene reparenting, hidden/detached targets receiving taps, temporary-resource cleanup, feeding visibility, repeated/stale learning rewards, demo progress, drag/paint cancellation, overlapping drop targets, X phonics, calm toy motion and scaled tablet HUD overlap.
+- Core rendering/creature work reductions and eight-view performance measurements are recorded in PERFORMANCE_LOG.md. Results vary by view; no universal speedup or physical-iPhone result is claimed.
+- Verification on desktop software rendering:
+  - Full world sweep: **158/159 assertions passed**, with no console errors/warnings. The remaining fixed-duration stair hold stopped at k≈.992 before the top. A targeted real-touch rerun passed the exact null-stair/y=4.4 criterion, plus partway stop and downstairs checks, using bounded condition-based holds. Game JavaScript was unchanged; the subsequent HUD-only correction retained the identical compiled JavaScript hash. The original full report is retained honestly in tests/TEST_RESULTS.json; resolution is in tests/BUILD41_TARGETED_RESULTS.json.
+  - Native nursery browser checks passed for hatching, all care, 3D snack dragging, real mouse/touch drawing, blankets/outfits, sleep/wake, reload with old collections, four nursery layouts and home entry.
+  - All41 native learning scenes passed, including distinct model semantics, calm motion, actual hidden/detached raycasts and renderer restoration.
+  - Both existing adventure integration/regression suites passed.11 changed HUD viewport layouts passed; these were viewport resizing checks, not eleven separate device identities or physical-device results.
+  -24 state/audio/render-work unit cases passed, plus builder/model-swap regressions,337 one-draw model checks,58 distinctions and learning source contracts.
+- One offline build41 bundle, cachev41 and previous published backup retained. The user merges the single release PR; real-iPhone playtesting remains a follow-up.
 
-## Checkpoint: build 40 alternate shadow implementation
-- **Requested:** make shadows work on the Pixel 10 Pro XL, rather than treating
-  shadow rendering as a hardware limitation.
-- **Implementation investigation:** installed Three.js r187 PCF uses a
-  `sampler2DShadow` with hardware depth comparison and linear filtering.
-  BasicShadowMap uses `sampler2D`, nearest depth sampling and shader comparison.
-  Add `?graphics=full-basic-shadows` and the isolated
-  `?graphics=safe&restore=shadows&shadow=basic` trial. Keep original map size,
-  warmup, shadow casters and other rendering features intact. No library
-  downgrade, scene simplification or reduction in shadow-map resolution.
-- **Verified (desktop, software rendering):** a pixel comparison finds 85
-  genuinely shadow-darkened pixels (maximum channel-average darkening 94),
-  a 1536×1536 depth map and zero GL errors. The full game starts with all seven
-  categories active. Its allocated shadow map is 1536×1536, comparison is null,
-  filters are nearest, and all 60 active directional shadow sampler uniforms
-  have type SAMPLER_2D. A screenshot shows real character/scenery shadows.
-- The checks page records the new full-detail alternative separately. The normal
-  Android profile remains the physically verified shadow-free one. Pre-change
-  HTML is preserved in `../backups/3D_build40_index.html`.
-- **Pending:** physical Pixel validation; the original driver/shader failure
-  has not been conclusively isolated to hardware comparison.
+## Checkpoint: build 40 — connected adventures, one release
 
-## Checkpoint: build 39 confirmed Android default
-- **Physical Pixel confirmation:** the user reports full detail without shadow
-  maps opens and plays. The isolated shadow trial failed.
-- Promote the exact verified profile to the normal Android URL. Keep all six
-  restored categories and freeze the profile as in the successful trial; shadow
-  maps and light shadow casting remain disabled from startup. Explicit safe
-  mode and the original non-Android profile remain available.
-- Regular game canvas requests retain compatible fallback; explicit diagnostic
-  trials still fail visibly if their requested options are rejected. Game saves
-  and bundled portraits are unchanged. Pre-change HTML is preserved in
-  `../backups/3D_build39_index.html`.
-- **Verified (desktop, software rendering):** the normal Android URL starts
-  with all six restored categories active, no trial UI and zero shadow maps.
-  Quality changes cannot turn shadows back on. Explicit safe mode, default
-  canvas fallback, strict trial rejection, profile filtering, local results
-  persistence/export and game-save isolation also pass.
-- The precise shader/driver operation within the shadow path remains unknown;
-  the verified workaround is shadow-map rendering off, not lower hardware capability.
+- Eleven optional picture adventures connect Fluffkin rescue, companions, learning, regional activities, art and Ocean Pier treasure. Progress and rewards are saved by stable event IDs; repeated/out-of-order discoveries cannot duplicate prizes.
+- A picture/voice discovery book records sea creatures and places. Home and Art Plaza galleries keep compact painting and building previews, with saved souvenirs and a cushion choice. The pattern reward starts a small moving train in the house.
+- Regional additions include an owl search with visible and audible clues, persistent snow friend, varied deterministic fishing catches, reusable shell clue, harvest/feeding milestones, sea discoveries and learning flowers.
+- Illustrated map destinations show discovered activity pictures. The paw prompt shares its target selection with the indicator. Optional guide controls are at least 44 px and hide while creative tool trays are visible.
+- Independent voice/music/effect settings, calm effects and gentle controls retain the existing master mute. Calm bubble, float/sink and magnet activities retain static visible outcomes. Musical creatures, castle toys and marble bins use the music channel.
+- Existing save key and fields remain intact. Completed rescues can retell their story through pictures without resetting rescued babies. A detached home display is removed from both scene traversal and outdoor tap targets.
+- Verified on desktop Chromium / SwiftShader (not an actual iPhone):
+  - Full existing game smoke suite: **159/159**, no console errors or warnings, including old save/reload, creatures, rides, painting, building, farm, pier and learning checks.
+  - Final focused adventure integration and regression suites passed after the home-display, music-routing and narrow-screen follow-ups. They check real activity callbacks, save reload, guide restoration, rescue replay, home routing, calm learning, music sources, woodland persistence, train movement and creative tray access.
+  - Pure adventure state **8/8** and comfort/audio **3/3** tests passed.
+  - **11 unique emulated screen sizes** passed. An older-iPad screenshot exceeded the device harness's original 30 s capture allowance; its rerun with the same 240 s screenshot allowance as the smoke harness passed every unchanged game/layout/touch assertion. Device results are in `screenshots/devices/RESULTS.json`.
+  - Before/after performance and earned-reward measurements recorded in PERFORMANCE_LOG.md and tests/PERFORMANCE_BUILD40.json. Shader count remains 101; far home display detaches.
+- Built to one offline HTML file; service-worker cache version is build 40. Previous published HTML retained in backups.
+- After merging the newer main: rebuilt the HTML; reran all 11 unit checks, both focused adventure browser suites, and all three graphics-cap scenarios successfully on desktop Chromium.
+- Delivery: repository access is now installed and the combined release is uploaded as PR #46. Latest main fixes for the iPhone graphics cap are retained; the PR is left for the user to merge.
 
-## Checkpoint: build 38 shadow-free full-detail trial
-- **Physical Pixel report:** the isolated shadow trial broke the game.
-- **Next trial:** `?graphics=full-no-shadows` restores resolution, detailed
-  scenery, fur, effects, canvas antialiasing and the high-performance request
-  together, with shadow maps disabled. This named preset cannot be overridden
-  by an extra `restore=shadows` argument. Shadow maps and light shadow casting
-  are disabled from startup, before any rendering or shader warmup.
-- The checks page records this combined trial separately and skips shadows in
-  its next-check suggestion. The normal working Android default is unchanged.
-  Pre-change HTML is saved in `../backups/3D_build38_index.html`.
-- **Verified (desktop, software rendering):** the combined profile starts with
-  all six requested categories active and shadow rendering off. Switching
-  quality levels 5 → 0 leaves shadow-map rendering off, every light's shadow
-  casting off, and zero allocated shadow maps. Profile filtering, conflict
-  handling, result persistence/export and game-save isolation pass.
-- The exact failing operation within the shadow path and the new combination's
-  behavior on the physical Pixel are still pending.
 
-## Checkpoint: build 37 individual graphics trials
-- **Requested:** restore the graphics features individually after the physical
-  Pixel successfully ran build 36's lighter rendering profile.
-- **Implementation:** independent restoration flags for resolution, shadows,
-  scenery, fur, post-processing, canvas antialiasing and graphics preference.
-  Trial links explicitly use the safe baseline and retain normal gameplay and
-  speech. Automatic quality cannot change the other features during a trial.
-  Canvas-request trials fail visibly if rejected, with no silent fallback.
-- **Test page:** `graphics-tests.html` offers each trial, records local
-  Worked/Slow/Failed results, and prepares a report for manual copying. A return
-  link appears only in explicit trial URLs, including on the error screen.
-  Normal game defaults and the game-save key are unchanged. Pre-change HTML is
-  preserved in `../backups/3D_build37_index.html`.
-- **Offline helper:** cache game and diagnostic documents separately; the old
-  navigate handler would have overwritten the offline game with the test page.
-  Cache the test page/profile module and retain unrelated application caches.
-- **Verified (desktop, software rendering):** the baseline and all seven real-game
-  trials start with exactly the selected graphics category active, visible
-  portraits and no uncaught JavaScript errors. The profile matrix, test-page
-  navigation/results/export, save isolation and explicit rejection of canvas
-  requests pass. The offline navigation test preserves the game, offline checks
-  and unrelated application caches, including upgrade from the legacy helper
-  when the checks page is the first page opened after deployment.
-- Physical feature-by-feature results and combination testing are pending.
+## Checkpoint: build 39 — fixes from the first real iPhone report of the new builds
+- **The report (iPhone, iOS 18.7, Home Screen app, build 36, 844×390 at 3×):**
+  - start-up 3.8–4.8 s; moving between areas 130–300 ms; worst test frames 38–78 ms; frame work 7.7–8 ms;
+  - a flat 30 fps everywhere (even the light house interior), so the phone is capping it. Likely Low Power Mode; the user has been asked.
+  - Voice works: the sound button was off, and "Test the voice" spoke and finished a sentence.
+- **Fixed:**
+  1. **Time in the background no longer counts as a frame.** The report showed a "10,412 ms freeze": the app was in the background while the results were copied.
+  2. **A 30 fps cap is recognised by trying.**
+     - On the iPhone, the automatic graphics went 4→5→4 under the cap: a worse picture for nothing.
+     - Now, when frames are at about 30 fps and seem slow, the picture drops to the lowest level for 6 s. If even that isn't faster, it is a cap: back to the previous level, no more lowering while the cap lasts, and the build 33 "room to spare" rule may raise the quality.
+     - If it IS faster, the device really is slow: one level lower than before, and the "room to spare" rule is switched off (it measures CPU time only).
+  3. **The report shows the real build number** (it always said "build 26").
+- **Verified (desktop):** `tests/perf/capcheck.cjs` feeds recorded frame times to the automatic graphics:
+  - (A) a jumpy 30 fps cap like the iPhone's: one 6 s test, then the best picture (level 0);
+  - (B) a genuinely slow device (22 fps): steps down to level 5;
+  - (C) a GPU-bound device at 30 fps that is faster when lowered: test, then level 3 (60 fps).
+  - The first versions of this logic failed (C) twice; both were fixed before this checkpoint.
+  - `ba.cjs` runs with adaptive quality off, so it can't show this change.
+  - The full smoke test result is recorded in the commit after this entry.
+- **Build 38 (🌊 Ocean Pier) after merge:** full smoke test 159/159, device test 10/10.
 
-## Checkpoint: build 36 Android profile and bundled portraits
-- **Physical Pixel report:** after a Chrome restart, the light
-  `?test&graphics=compatible` build opens and gameplay works, but the character
-  selection pictures are missing. The previous full-effects build reported
-  `Web page caused context loss and was blocked`.
-- **Rendering profile:** Android now selects the working lighter configuration
-  independently of automated test mode: procedural scenery, no shell fur,
-  no shadow map, no post-processing and lower resolution. Speech, learning
-  activities, saves and all gameplay stay enabled. `?graphics=safe` forces this
-  profile on any platform; `?graphics=full` restores the full rendering path.
-- **Portrait fix:** bundle three PNGs rendered from the real character models,
-  remove runtime canvas readback and ignore the old portrait cache. Pictures are
-  present on the first visit even if the old cache contains blank PNGs. The
-  original pre-change build is preserved in `../backups/3D_build36_index.html`.
-- **Verified (desktop, software rendering):** `test:android` passes on an Android
-  user agent with no test flag, explicit safe mode and full-profile opt-in.
-  Checks cover nonblank image pixels, the old blank-cache case, saved creature,
-  crown, wand, pets, discoveries and star bits, speech delivery to a mocked browser
-  speech API, character selection, actual touch walking and portrait/landscape
-  resizing. This does not establish audible speech or GPU behavior on the Pixel.
-- **Pending:** physical verification of the new regular build, exact isolation
-  of the original GPU reset, and the full gameplay smoke suite.
+## Checkpoint: build 38 — 🌊 Ocean Pier (merged as #44)
+- New district (x -668 to -536) with 7 activities (fishing, tide pool, musical buoys, dolphin, treasure, sailboat, whale), crates and gems g17–g18, Splash the seal 🦭, and a 🌊 station (20 stations).
+- Walking in: 0 long tasks, programs 101 → 101, 71 calls and 104k triangles.
+- `ba.cjs` 37 → 38: no slower. Full smoke test 159/159; device test 10/10.
+- An 835 ms long task happened once on a train trip (x 202) and did not reproduce in 2 more runs of each build: on the task list.
 
-## Checkpoint: build 35 Android test branch
-- **Reported:** Pixel 10 Pro / Chrome cannot create the game's WebGL context;
-  the standalone WebGL 2 cube works on the same phone.
-- **Proposed fix:** retry WebGL 2 startup without canvas antialiasing using the
-  default and then low-power graphics preference. Capture browser creation errors.
-  `?graphics=compatible` starts with the simpler request directly.
-- **Test setup:** rebuilt the offline `index.html`, preserved the original as
-  `../backups/3D_build35_index.html`, added `npm run test:renderer`, and documented
-  test URLs and branch-based Pages publishing in `ANDROID_TESTING.md`.
-- **Verified (desktop, software rendering):** seven renderer cases pass, including
-  actual pixel rendering, unavailable antialiasing, a low-power-only context,
-  diagnostic errors and listener cleanup. The original build, updated default
-  build and explicit compatible build start and accept the Play button without
-  uncaught JavaScript errors in light test mode.
-- **Additional startup checks passed (desktop, software rendering):** the full
-  game starts after simulated antialiasing rejection, and the explicit compatible
-  build starts with the normal post-processing effects enabled. All seven
-  renderer cases and five game-startup scenarios in `test:renderer` passed.
-- **Pending:** physical Pixel verification and the full gameplay smoke suite.
+## Checkpoint: build 37 — the castle draws much less
+- **Castle front merged:** 162 still, untapped parts of the build 16 castle front (steps, railings, shutters, flower boxes, climbing roses, hedges, topiary, lanterns, rose window, banners) are merged into one shape per *look-alike* material.
+  - The code made a new material object for every part, so the parts are grouped by what the material looks like: type, colours, roughness, textures and so on.
+  - The castle group goes from 213 meshes to 67. No new shaders, because the materials are the same.
+- **Verified (desktop, software rendering):**
+  - `tests/perf/calls.cjs` at x 398: 221 → 163 draw calls per frame (castle group 89 → 31).
+  - `tests/perf/ba.cjs` 36 → 37:
+    - castle calls 562 → 319; script ms/frame park 13.2 → 11.2, creatures 10.6 → 8.9, castle 11.8 → 9.9;
+    - 0 long tasks; geometries 1514 → 1372; programs 101.
+  - Before/after screenshots of the castle front show the same parts.
+  - Full smoke test 155/155.
+
+## Checkpoint: build 36 — one game for every phone and tablet (Apple and Android)
+- **Screen fitting:**
+  - The picture is drawn at the canvas's real on-screen size: no stretching (build 34b), with a ResizeObserver plus a twice-a-second safety check.
+  - **Camera:** on screens squarer than about 2:1 (iPads are 4:3), the vertical view angle opens part of the way (38° → about 47–49°), so the sides stay in view instead of looking zoomed in. Phones are unchanged.
+  - **Pixel budget:** the picture is drawn at no more than 1.0 M pixels on phones, 1.6 M on tablets and 3 M on desktops (Performance mode: 60% of that). Phones are already under it; dense tablet screens no longer draw 2–3× a phone's pixels.
+- **Interface:**
+  - `--ui` scale: 1 on phones (never smaller), up to 1.35 on tablets. Controls use transforms, so the arrow pad's direction maths still works.
+  - Top buttons are at least 46 px. On narrow phones the right-hand group wraps onto a second row instead of running off the screen.
+  - The 🗺️ and 🐾 panels size their tiles from the screen's width and height and wrap; the grown-ups' panel, title card and memory cards fit short screens.
+  - The title label is hidden on touch screens (the bigger tablet buttons covered it).
+  - The station strip wraps instead of scrolling (pictures past the edge were unreachable by touch) and opens below the top buttons.
+  - The "turn me sideways" picture shows on every touch screen held upright, including tablets.
+- **Platform:**
+  - Full screen and a landscape lock where the browser allows them (Android Chrome, iPad Safari; not iPhone Safari, where the Home Screen app is the full-screen way). PLAY asks for full screen on touch devices in a browser tab; there is a ⛶ button in ⚙️.
+  - Sound resumes after a call or an app switch on iPhone (the 'interrupted' state).
+  - Every button is released when the app is hidden.
+  - Device detection: iPad (which reports itself as a Mac), Android tablet vs phone, Home Screen app.
+- **⚙️ Graphics:** Auto (measured frame times, as before) or a fixed Quality, Balanced or Performance mode, remembered on the device.
+- **Verified (desktop Chromium emulation only — real iPhones, iPads and Android devices still need testing):**
+  - `tests/devices.cjs` covers 10 screens: iPhone SE, iPhone 15, iPhone 15 Pro Max, iPad 7, iPad Pro 11, Pixel 5, Galaxy S9+, Galaxy Tab S4, a 640×360 Android and a 21:9 Android. **10/10 pass:**
+    - the picture fills the screen unstretched;
+    - every button is on screen, at least 45 px, with no overlaps;
+    - the map, pets and station panels fit, including next to the top buttons;
+    - holding ▶ walks, letting go stops, and JUMP jumps;
+    - held upright, the "turn sideways" picture shows.
+    - The first run found real phone problems (buttons 34–42 px, ⚙️ off screen on narrow phones); those were fixed. Looking at the screenshots found two more (the covered title label on tablets, the strip covering the second button row); those were fixed and the test now checks them.
+  - `tests/perf/ba.cjs` 35 → 36, side by side: script ms/frame park 14.3 → 10.0, creatures 16.1 → 8.2, castle 12.9 → 12.2 (run-to-run noise is about ±4 ms on this machine); 0 long tasks; programs 101; memory unchanged.
+
+## Checkpoint: build 35 — 🚜 Happy Farm
+- **New region: 🚜 Happy Farm** (x -536 to -404, left of Frosty Peaks). Streamed like the other districts, with shared materials only. 11 picture-only activities:
+  - **Barn:** the doors open and an animal says hello (horse, cow, goat, sheep, rooster, with its sound and name).
+  - **Hen:** lays eggs; count to five and the chicks hatch.
+  - **Rainbow sheep:** her wool changes colour and she says the colour.
+  - **Haystack:** climb the bales and bounce on top; gem g15 floats above it.
+  - **Vegetable patch:** seed → sprout → carrot → pull it up, and count.
+  - **Apple tree:** apples drop into the basket; count to five.
+  - **Windmill:** tap it to make it spin.
+  - **Duck pond:** the ducklings follow their mother in a line.
+  - **Toy tractor:** drives across the field and back.
+  - **Mud puddle with piglets,** and cows mooing in the field.
+  - **Gem g16** at the end of the path.
+- **New pal: Truffle the piglet 🐷.** Three taps to befriend; follows you; appears in 🐾. The save accepts the new `pig` key.
+- **Train:** the line is extended to x -534 with a 🚜 station (19 stations). The map gets 🚜 automatically from `DISTRICTS`.
+- **Ground:** a lawn zone, the cobble path, the front rail and a few trees behind the fields.
+- **Bug fixed:** Frosty Peaks' falling snow followed you onto the farm. It now only falls in Frosty Peaks.
+- **Test fix:** the first walking check now waits for frames to settle. It failed once (1.9 m vs. more than 2) in the first seconds after start-up on the slow test machine.
+- **Verified (desktop, software rendering):**
+  - Walking into the farm from Frosty Peaks: 0 long tasks; shader programs 101 → 101; 90 draw calls, 270k triangles.
+  - `tests/perf/ba.cjs` 34c → 35: script ms/frame unchanged (park 13.5 → 13.7, creatures 11.9 → 11.4, castle 13.2 → 14.0, all within run-to-run noise); 0 long tasks everywhere; memory 121 → 122 MB, programs 101 → 101.
+  - Train to 🚜: whole line arrives, 19 picture tiles, 0 frames near an unbuilt district.
+  - Screenshots of the barn, pigs, sheep, windmill and tractor look right.
 
 ## Checkpoint: build 34c (user request)
 - **Removed the big pink wall** at x -1.5, by the train at the start of the playhouse (requested with a screenshot). It was the old left edge of the world. The world now continues left and the train runs through there, so it only blocked the view.

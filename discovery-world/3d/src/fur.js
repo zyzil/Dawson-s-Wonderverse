@@ -7,7 +7,6 @@
 // roots and lighter at the tips, and droop a little with gravity.
 // ===================================================================
 import * as THREE from 'three';
-import { GRAPHICS } from './graphics.js';
 
 // (build 21) PLUSH FUR, texture-based. A tileable "fibre height" map (thousands of round strands, each
 // tallest in its middle) is sampled in 3D (triplanar) on the creature's rest-pose surface. Each shell keeps
@@ -52,7 +51,7 @@ export const FUR = []; // (build 22) every furry creature's shells: drawn only n
 const PHONE = typeof matchMedia !== 'undefined' && (matchMedia('(pointer: coarse)').matches || /iPhone|iPad|Android/.test(navigator.userAgent)); // (build 22: fewer fur layers on phones)
 const LIGHT_TEST = typeof location !== 'undefined' && /[?&]test/.test(location.search); // (the automated tests' light mode skips fur)
 export function addFur(mesh, o = {}) {
-  if (LIGHT_TEST || !GRAPHICS.fur) return [];
+  if (LIGHT_TEST) return [];
   const n = Math.min(o.shells ?? 8, PHONE ? 5 : 99), opts = { length: o.length ?? .03, density: o.density ?? 260, droop: o.droop, tint: o.tint }, shells = [];
   for (let i = 1; i <= n; i++) {
     const s = new THREE.SkinnedMesh(mesh.geometry, furMaterial(mesh.material, i / n, opts));

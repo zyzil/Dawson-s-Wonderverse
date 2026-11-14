@@ -4,148 +4,80 @@ This is the full rebuild of Dawson's Discovery World in real 3D. It is a **separ
 
 Play: open `index.html`. It is one self-contained file and works offline. Once merged, it is also on GitHub Pages at `…/discovery-world/3d/`.
 
-## Build 48: colour-packed shadow map trial
+## 3D build 41: Pet Nursery & Creative Studio
 
-Build 47 completed the starting view, both underground views and sky checks on
-the Pixel, then reset during castle instanced-scenery receiving. Instanced receiving
-also completed earlier, so this does not establish a single unsupported mesh type.
+Tap **🥚** to open Little Wonders, a furnished 3D pet playroom using the same sculpted pets and toy materials as the world, or choose **🥚 🎨** in the home gallery.
 
-The next opt-in mode adds `shadowstorage=rgba` to the Basic/receiver/uniform-bone
-trial. It stores shadow depth in an RGBA8 colour texture, using a 24-bit depth
-renderbuffer for depth testing. No native shadow depth texture is sampled.
-Instancing, GPU animation, real shadows, fur, map size, AA and effects remain.
-Use [graphics checks](graphics-tests.html?build=48); phone confirmation is pending.
+- Hatch Pip, Moss and Twinkle with three taps. Feed, bathe, brush and play with a friend to discover the next egg. All activities can be repeated freely, with no waiting or declining needs.
+- Choose snacks and drag them to your friend, rub with the sponge or brush, play catch, and tuck your pet in. Tap to wake them whenever you like.
+- Open **🎨** to design a blanket or outfit using six colors, stamps and finger drawing. Undo, clear or fill the background, then tap **✅ 🎁** to apply it. Pets wear their outfits and sleep under their own blankets; the blanket also decorates the room.
+- Each pet keeps its own creations, room color, care and bedtime state. Original world pets, adventures and collections are preserved in the same device save.
+- Picture controls and replayable voice instructions work without reading. Calm effects and reduced-motion preferences are respected. The playroom pauses exploration and reuses the existing 3D renderer. Its pets and furnishings are drawn only while the room is open.
 
-## Build 47: uniform bone palettes for the shadow trial
+- All 41 learning activities now use real 3D toys, including feeling faces, letter/number blocks, puzzle pieces, instruments and science objects. Existing levels, demonstrations, voice prompts and learning progress remain.
+- Streamed-world animals, fish, shells, flowers, gems, balloons and prizes are solid 3D models. They use one drawing batch each and the game's fine toy-surface texture. Picture signs, maps and editable artworks remain useful interfaces and surfaces.
+- Fixed saved builder erasing, hidden objects intercepting taps, temporary scenery cleanup, learning reward/cancellation issues, and several touch-layout problems. Removed duplicate scene clearing and unnecessary work for distant creatures.
 
-The physical build 46 run passed shadow casting, nonreceiving surfaces,
-physical receivers and instanced scenery, then reset while a skinned character
-body received shadows. This narrows that run to a combination; it does not
-establish the exact driver cause or prove groups with zero actual draws.
+Desktop software-rendering verification is recorded in DEVELOPMENT_LOG.md and PERFORMANCE_LOG.md. Real iPhone playtesting remains necessary.
 
-Opt-in `bones=uniform` together with Basic shadows and `shadowcode=receivers`
-replaces bone-texture reads with uniform matrix palettes for the small rigs.
-GPU animation, skinned normals, fur, character casting/receiving, full detail,
-1536 shadow maps and antialiasing remain enabled. The renderer checks the vertex
-uniform budget and includes rig size in program selection and cache keys.
-Use [graphics checks](graphics-tests.html?build=47). Phone confirmation is pending.
+## 3D build 48: climb into the rocket and press the big red button
 
-## Build 46: compile shadow features only for receivers
+- **PAW at the rocket now gets you in.** It used to blow bubbles, because the rocket stood exactly on the bubble fountain. The rocket has moved a few steps over, next to the fountain.
+- **A real rocket ride:**
+  - You walk up and climb in; your face shows in the round window.
+  - Pick a planet, and a big pulsing red button appears.
+  - Press it: a 3-2-1 countdown with rumbling and smoke, then a flame, and the rocket lifts off the pad. The camera rides up with it.
+  - At the planet (or back home on Earth) the rocket comes down onto its pad with its flame, and you climb out.
+- JUMP or ✖ climbs out before take-off.
+- **Also fixed:** the Uranus aliens roll on top of the ground instead of half inside it; the barn, chicken-coop and pink stand roofs are straight; the crown and wand stay on her head while riding the whale.
 
-The latest Pixel run passed all casting checks, then reset while drawing world
-surfaces with runtime shadow receiving off. The same step passed previously;
-view aspect and asynchronously loaded meshes differ, so an underground-only
-trigger is not established. Three.js still includes shadow chunks/samplers when
-only the runtime receiving uniform is off.
+## 3D builds 46–47: aliens and planet activities, the whale stays, a straight roof
 
-Explicit `shadowcode=receivers` limits the compiled shadow feature to actual
-receiving objects. Casting, real receiver shadows, materials, resolution and
-antialiasing are preserved. The build adapts the pinned r187 renderer with guarded
-substitutions and correct cached-program switching for shared materials. Normal
-profiles keep their existing rendering behavior. This is an unconfirmed phone
-compatibility trial; use [graphics checks](graphics-tests.html?build=46).
+- **Every planet is its own world:** land on all of them, even the gas giants (on their swirly clouds), each with its own colours, a different kind of alien to meet, and things to do that fit the planet. For example: drive the rover on Mars, make lightning on Jupiter, slide on Pluto's icy heart.
+- **The sky whale** no longer disappears while you fly it.
+- **The house roof** is straight when seen from the sky.
 
-## Build 45: check the underground and remaining local views
+## 3D build 45: a friendlier voice, and a rocket to the planets
 
-The Pixel completed all starting-view probes and six local views in build 44,
-then reset at underground view (20, -6). `worldprobe=areas` keeps the starting
-checks and repeats them at both underground views and the remaining sky/castle
-views. Reports label the coordinates and camera aspect, preserve a compact
-history of completed views and keep full details for the latest view. Normal
-profiles and the earlier `worldprobe=1` comparison are unchanged. This is a
-slower diagnostic run; a phone shadow fix is still unconfirmed.
+- **The voice sounds warmer and more natural:**
+  - It picks the best voice on the phone and speaks at a natural pitch and a calm pace.
+  - Grown-ups can choose a voice in ⚙️.
+  - Tip: download Ava or Zoe (Premium) in the iPhone's Settings → Accessibility → Spoken Content → Voices. They're free and much more natural.
+- **A space rocket in the Lab Gardens:**
+  - Fly to the Moon, Mercury, Venus, Mars, Jupiter, Saturn, Uranus, Neptune or Pluto, and back home to Earth.
+  - Each place has its **real gravity**: on the Moon she jumps about 6 times higher, on Pluto about 16 times higher and floats down slowly, and on Jupiter she can only do tiny hops.
+  - The gas giants have no ground, so there she stands on a floating space platform in the clouds.
+  - A striped pole shows how high she jumped, and the voice tells her.
 
-## Build 44: separate actual world casting and surface shading
+## 3D build 44: smoother in the park, no freeze in the Art Plaza
 
-The physical Pixel passed both build 43 simple draws, including the exact HDR
-startup buffer, then reset on the first actual world view. The explicit
-`?graphics=full-basic-shadows&preflight=1&worldprobe=1` run now checks real world
-caster groups without drawing world surfaces, then freezes the complete shadow
-map and tests receiving by surface group. Each step waits for GPU completion.
-A copied failure report lists completed steps and actual draw counts. Temporary
-flags and light layers restore before normal warmup/play. This is a diagnostic,
-not a confirmed phone fix; normal profiles stay unchanged.
+- When the phone needs the lightest graphics, the park and creature area now draw much less (about a quarter fewer triangles), without looking different.
+- Fixed a short freeze at the end of the Art Plaza that came with build 43.
 
-## Build 43: initialize shadows before the HDR startup target
+## 3D build 43: zoomed out, no signs, a real seesaw, stairs to the sky, fly the whale, an underwater world
 
-Build 42 also reset on the physical Pixel, on its first local view with zero
-completed batches. `?graphics=full-basic-shadows&preflight=1` first draws a simple
-shadow scene on the game's canvas, then in its exact HDR/MSAA/depth startup
-buffer. Each draw waits for GPU completion. The game keeps the initialized
-1536×1536 shadow map, full detail and antialiasing. This tests an initialization
-order workaround; it is not yet a verified phone fix. A failure report includes
-which simple draws completed. Normal game profiles are unchanged.
+- **See more:** the camera is further out, and the whole Block Builder wall fits on screen.
+- **No signs in the way:**
+  - The learning signposts are now glowing play spots with a floating toy.
+  - A glowing circle on the path shows where to stand.
+  - Every activity twinkles, so Dawson can tell what she can play with.
+- **A real seesaw** to ride up and down, with a teddy friend. Jump at the top for a super bounce!
+- **Stairs to the sky:** at both ends of the world, rainbow stairs climb up to the Sky Kingdom. The Sky Kingdom is bigger, with the moon and stars to count, cloud sheep that make rain and a rainbow, colour balloons and bouncy clouds.
+- **Fly the sky whale anywhere:** the arrows steer it over the whole world; JUMP hops off and you float down.
+- **A deep swimming pool** by the beach. Swim to the bottom, through the tunnel, into an **underwater world** full of fish, a turtle, an octopus, jellyfish, dolphins, coral, a shipwreck with treasure, and more.
 
-## Build 42: Basic shadows with bounded startup work
+## 3D build 40: connected adventures and home treasures
 
-The physical Pixel 10 Pro XL draws the small scene with Basic shadow maps at
-512 and 1536; filtered PCF at 1536 resets its graphics context. The original
-full Basic game also failed, so `?graphics=full-basic-shadows` now warms shadows
-in local views, with a nonblocking GPU completion wait between startup batches.
-It keeps the original mobile map resolution and all other graphics features.
-The new full-game trial still needs the phone's confirmation. The normal
-Android game retains the verified shadow-free profile. See
-[graphics checks](graphics-tests.html?build=42).
+- Tap 🧭 for eleven optional picture adventures, the discovery book, home gallery and comfort settings. Every essential prompt is spoken and can be replayed; there is no reading required or forced progression.
+- The first adventure guides movement, finding a Fluffkin and taking it home. When every baby is already safe, replay tells their story through pictures without resetting them.
+- Explore with a companion, grow a learning garden, restore a rainbow decoration, and finish a pattern to start a little train at home. Earned home decorations stay saved.
+- Ocean Pier has varied catches, a reusable seaside shell clue, sea-creature discoveries and a treasure adventure. The woods have an owl search with sound and visible clues; the snow friend survives returning to the area.
+- Save small previews of your painting and building in the gallery at home or Art Plaza. Sea-creature book entries have replayable names and short facts.
+- The map has destination drawings and pictures of activities already discovered. The paw button and nearby indicator refer to the same usable target.
+- Comfort settings separately control voice, music and play sounds, with gentle controls and calm effects. Calm learning activities keep their outcomes visible without movement.
+- Existing save keys and progress remain compatible, including pets, gems, crown, wand, Fluffkins, paintings and building. The offline cache version is updated.
 
-## Build 41: isolate the shadow reset
-
-The physical Pixel 10 Pro XL also resets with the basic-shadow game trial.
-[Small shadow check](shadow-check.html?build=41) uses the same pinned renderer
-with only a block, floor and one shadow-casting light. Start with a 512×512 basic
-map, then compare the original 1536×1536 size and filtered sampling separately.
-Copy its report and say whether a shadow is visible. The working game defaults
-are unchanged. The context-loss message no longer guesses a memory cause.
-
-## Build 40: alternative shadow-sampling test
-
-`?graphics=full-basic-shadows` restores actual shadow maps using BasicShadowMap
-instead of the previously failing filtered PCF path. The mobile map stays
-1536×1536 and all other full-detail graphics remain enabled. Edges are harder.
-This is an explicit phone test; the regular Android game keeps its confirmed
-shadow-free default. See [graphics checks](graphics-tests.html?build=40).
-
-## Build 39: confirmed Android graphics fix
-
-The physical Pixel confirms full detail works when shadow maps are disabled.
-The normal Android game now uses that verified profile automatically: detailed
-scenery, fur, original resolution, effects and canvas antialiasing, with shadow
-maps off. Use the normal game link; no trial parameters are needed. The original
-iPhone profile retains shadows, and `?graphics=safe` remains the lighter fallback.
-
-## Build 38 test branch: full detail without shadow maps
-
-The physical Pixel failed the shadow-only trial. `?graphics=full-no-shadows`
-restores the other graphics features together while keeping shadow maps off
-from startup. This combined trial needs physical verification; the regular
-Android game still uses the working lighter profile. See the
-[graphics checks page](graphics-tests.html?build=38) to record results.
-
-## Build 37 test branch: restore individual graphics features
-
-Use [graphics checks](graphics-tests.html?build=37) to try resolution, shadows,
-scenery, fur, effects, canvas antialiasing and graphics preference individually.
-Every check starts with the working lighter profile and restores one category;
-the regular game keeps its working default. Record results on the checks page
-and copy them for review before testing combinations. See
-[Android testing and publishing](ANDROID_TESTING.md).
-
-## Build 36 test branch: Android rendering and character pictures
-
-Android now starts with the lighter rendering path that opened on the physical
-Pixel 10 Pro, while keeping normal speech, saves and game features. Character
-selection uses bundled portraits of the actual 3D characters instead of drawing
-and caching them on the phone. `?graphics=safe` forces this profile on any device;
-`?graphics=full` opts into the original full effects. See
-[Android testing and publishing](ANDROID_TESTING.md).
-
-## Build 35 test branch: Android graphics startup
-
-The `android-webgl-fallback` branch retries simpler graphics settings when WebGL 2
-context creation fails. Add `?graphics=compatible` to start directly with
-antialiasing off and the default graphics preference. See
-[Android testing and publishing](ANDROID_TESTING.md) for the fork's test links,
-Pages setup, rebuild commands, and regression tests. Physical Pixel 10 Pro
-verification is pending.
+Verification results for this release are recorded in DEVELOPMENT_LOG.md and PERFORMANCE_LOG.md. Desktop software rendering and emulated screens are not actual iPhone testing.
 
 ## What's in 3D build 1
 It is one connected 3D world that you walk through from left to right. There are no levels and no loading screens.
@@ -179,6 +111,64 @@ These are planned for later 3D builds:
 - the critter friends
 - Star Babies
 - creature styles
+
+## 3D build 40: Clover the goat, and freezes that say where
+
+- **A new pet friend: Clover the mountain goat 🐐** on the Adventure Trail. Tap her three times to make friends.
+- **For grown-ups:** the ⚙️ performance report now says *where* any freeze happened (for example "Park" or "in the house"), so it can be fixed.
+
+## 3D build 39: fixes from the iPhone report
+
+- Under a 30 fps cap (iPhone Low Power Mode), the automatic graphics no longer lower the picture for nothing. A short test tells a cap from real slowness.
+- Time in the background is no longer reported as a "freeze", and the report shows the real build number.
+
+## 3D build 38: 🌊 Ocean Pier
+
+- **A new area past the farm,** with a 🌊 train station. Seven activities need no reading: fishing (count the fish), a tide pool, musical buoys, a dolphin jumping through a hoop, treasure digging (count the coins), a sailboat and a spouting whale.
+- **A new pet: Splash the seal 🦭.**
+- **2 more gems,** 18 in all.
+
+## 3D build 37: a lighter castle
+
+- The decorated castle front was drawn as 213 separate little pieces. The ones that never move are now combined (the same look), so the castle view needs about a quarter fewer drawing commands every frame (221 → 163), measured on the test computer.
+- The game is otherwise unchanged: the full test (155 checks) passed.
+
+## 3D build 36: fits every phone and tablet (Apple and Android)
+
+- The game **measures the screen** and adapts to it:
+  - the picture is never stretched or cut off;
+  - the camera keeps the same comfortable framing on a wide phone and a square-ish iPad;
+  - buttons are always at least finger-sized (bigger on tablets) and stay clear of notches and rounded corners;
+  - on a narrow phone, the top buttons use two rows instead of running off the screen.
+- **Panels fit every screen:** map, pets and train stations. The station pictures now all show at once; on a phone some used to be off the edge and unreachable.
+- **Hold it sideways:** every phone and tablet held upright shows the friendly "turn me" picture.
+- **Full screen:**
+  - On Android phones and tablets (Chrome) and on iPads, the game goes full screen when you press PLAY, where the browser allows it.
+  - On an iPhone, Safari doesn't allow that for games: add the game to the Home Screen to play full screen.
+- **Speed:**
+  - Very sharp tablet screens no longer make the graphics chip draw two to three times as many pixels as a phone.
+  - Grown-ups can choose Auto, Quality, Balanced or Performance in ⚙️.
+- **Sound and buttons:** sound comes back after a phone call, and no button stays stuck after switching apps.
+- **Tested:** on 10 emulated screens (small, typical and large iPhones, two iPads, three Android phones, an Android tablet, an extra-wide phone). This is not the same as real devices, which still need checking.
+
+## 3D build 35: 🚜 Happy Farm
+
+- **A new area: the Happy Farm,** past Frosty Peaks at the far left end of the world. The train goes there (🚜 station), and it is on the 🗺️ map.
+- **11 things to do,** with no reading needed:
+  - a barn where animals pop out and say hello;
+  - a hen whose eggs you count (and chicks hatch);
+  - a rainbow sheep that says her colour;
+  - a haystack to climb and bounce on;
+  - carrots to plant, grow and pull up;
+  - an apple tree to count apples from;
+  - a spinning windmill;
+  - a duck family;
+  - a tractor that drives;
+  - muddy piglets;
+  - cows.
+- **2 more gems** (16 in all).
+- **A new pet: Truffle the piglet 🐷.** Tap her three times to make friends.
+- **Speed:** walking into the farm loads no new shaders and causes no stalls, and the rest of the game is as fast as before. Measured on a desktop test computer, not an iPhone.
 
 ## 3D build 34: the express train
 

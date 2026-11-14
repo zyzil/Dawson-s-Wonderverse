@@ -29,6 +29,15 @@ const UG_F = -6;
   const DRAG0 = { x: 150, y: 285, id: 7 };
   const drag = async (dx, ms, dy = 0) => holdBtn(Math.abs(dy) > Math.abs(dx) ? (dy < 0 ? '#upBtn' : '#downBtn') : (dx > 0 ? '#rightBtn' : '#leftBtn'), ms); // (build 9: arrow buttons are back)
   const holdBtn = async (sel, ms) => { const c = await center(sel); await touch('touchStart', [{ ...c, id: 1 }]); await sleep(ms); await touch('touchEnd', []); await sleep(80); };
+  // Bounded, real-touch holds for reaching a position on a slow renderer.
+  const holdUntil = async (sel, condition, arg, timeout = 15000) => {
+    const pt = await center(sel); let reached = false;
+    await touch('touchStart', [pt]);
+    try { await page.waitForFunction(condition, arg, { polling: 'raf', timeout }); reached = true; }
+    catch (_) { /* The caller retains its full movement/state assertion. */ }
+    finally { await touch('touchEnd', []); }
+    return reached;
+  };
   const press = async sel => holdBtn(sel, 80);
   const teleport = async (x, y = 0) => { await page.evaluate(([x, y]) => __DDW3.teleport(x, y), [x, y]); await sleep(2200); }; // let the camera settle (slow software WebGL)
   const waitFor = async (fn, ms = 8000) => { ms *= 3; /* (the software-graphics test browser is slow) */ const t0 = Date.now(); let s; while (Date.now() - t0 < ms) { s = await S(); if (fn(s)) return s; await sleep(120); } return s; };
@@ -50,8 +59,12 @@ const UG_F = -6;
   await shot('02_start.jpg');
   // ---------- moving + jumping ----------
   await page.evaluate(() => __DDW3.teleport(1.2)); await sleep(1500); // start at the far left (walking right leads into the ball pit and its deep part)
+  // (build 35) the first seconds after start-up are the busiest on the slow test machine: wait (up to 10 s) for frames to settle,
+  // so a fixed 0.6 s hold measures walking, not start-up work
+  await page.evaluate(() => new Promise(res => { const t0 = performance.now(); let last = t0; const iv = []; const f = now => { iv.push(now - last); last = now; if (iv.length > 5) iv.shift(); if ((iv.length === 5 && iv.reduce((a, b) => a + b) / 5 < 120) || now - t0 > 10000) res(); else requestAnimationFrame(f); }; requestAnimationFrame(f); }));
   c = await S(); const x0 = c.x;
-  await holdBtn('#rightBtn', 600); c = await S(); check('slide a finger right to walk right', c.x > x0 + 2, `x ${x0.toFixed(1)} → ${c.x.toFixed(1)}`);
+  const walked = await holdUntil('#rightBtn', x => __DDW3.player.x > x + 2, x0);
+  c = await S(); check('slide a finger right to walk right', walked && c.x > x0 + 2, `x ${x0.toFixed(1)} → ${c.x.toFixed(1)}`);
   const x1 = await page.evaluate(() => new Promise(r => { let still = 0, n = 0; const f = () => { const P = __DDW3.player; still = Math.abs(P.vx) < .01 ? still + 1 : 0; if (still > 4 || ++n > 300) return r(P.x); requestAnimationFrame(f); }; f(); })); await sleep(600); check('let go and the creature stops', Math.abs((await S()).x - x1) < .2);
   await holdBtn('#leftBtn', 500); check('slide a finger left to walk left', (await S()).x < x1 - .5);
   { const j = await center('#jumpBtn'); const seen = page.evaluate(() => new Promise(r => { let n = 0; const f = () => { const P = __DDW3.player; if (P.y > .3) return r(P.y); if (++n > 200) return r(P.y); requestAnimationFrame(f); }; f(); })); await touch('touchStart', [j]); await touch('touchEnd', []); const jy = await seen; check('JUMP jumps', jy > .3, `y=${jy.toFixed(2)}`);
@@ -197,7 +210,10 @@ const UG_F = -6;
   await shot('22_train.jpg');
   await press('#pawBtn'); await sleep(400); c = await S(); check('PAW: hop off the train (anywhere)', !c.ride && c.y < .1, `ride=${c.ride} x=${c.x.toFixed(1)}`);
   // ---------- build 9: the Marble Machine ----------
-  await teleport(332);
+  await teleport(332); await sleep(2000); // (build 43: let the camera finish easing back here before tapping the small ramps)
+  // (build 48: wait until the camera has really stopped moving: on this slow browser 2 s was sometimes not enough, and a tap at a ramp that
+  //  was still sliding across the screen missed it)
+  await page.evaluate(() => new Promise(res => { let last = null, still = 0; const t0 = performance.now(); const f = () => { const p = __DDW3.camera.position, k = `${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}`; still = k === last ? still + 1 : 0; last = k; if (still >= 3 || performance.now() - t0 > 30000) res(); else setTimeout(f, 250); }; f(); }));
   { const n0 = await page.evaluate(() => __DDW3.marbles.marbles.length); await tapWorld(327.6, 2.3, -2.2); const n1 = await page.evaluate(() => __DDW3.marbles.marbles.length);
     check('tap the Marble Machine board: a marble drops', n1 === n0 + 1 && (await S()).disc.includes('marbles'), `${n0} → ${n1}`); }
   { const a0 = await page.evaluate(() => __DDW3.marbles.ramps[1].target); await tapWorld(332.2, 3.2, -1.8); const a1 = await page.evaluate(() => __DDW3.marbles.ramps[1].target);
@@ -275,14 +291,14 @@ const UG_F = -6;
   await sleep(600); await shot('13_inside_house.jpg');
   await teleport(1022.6); await sleep(200); c = await S(); check('stair bubble at the bottom of the stairs', c.door === 'up');
   await press('#pawBtn'); await sleep(500); c = await S(); check('PAW puts you on the first step (no automatic walking)', c.stair === 0);
-  await holdBtn('#rightBtn', 700); c = await S(); check('hold ▶ to walk up part-way, let go to stop', c.stair > .2 && c.stair < .95, `k=${c.stair}`);
-  await holdBtn('#rightBtn', 1400); c = await waitFor(s => s.stair === null && Math.abs(s.y - 4.4) < .01, 6000); check('walk off the top onto the upstairs floor', c.stair === null && Math.abs(c.y - 4.4) < .01, `y=${c.y}`);
+  const partWay = await holdUntil('#rightBtn', () => __DDW3.player.stair?.k > .35); c = await S(); check('hold ▶ to walk up part-way, let go to stop', partWay && c.stair > .2 && c.stair < .95, `k=${c.stair}`);
+  const upstairs = await holdUntil('#rightBtn', () => !__DDW3.player.stair && Math.abs(__DDW3.player.y - 4.4) < .01); c = await S(); check('walk off the top onto the upstairs floor', upstairs && c.stair === null && Math.abs(c.y - 4.4) < .01, `y=${c.y}`);
   await holdBtn('#leftBtn', 900); await sleep(800); await shot('14_nursery.jpg');
   await page.evaluate(() => __DDW3.teleport(1015, 4.4)); await sleep(300); await press('#jumpBtn'); await sleep(200); await press('#jumpBtn'); await sleep(500);
   c = await S(); check('the ceiling stops you upstairs (no flying through the roof)', c.y + 1.5 <= 8.81, `y=${c.y.toFixed(2)}`);
   await waitFor(s => s.grounded, 3000);
   await page.evaluate(() => __DDW3.teleport(1028.2, 4.4)); await sleep(300); c = await S(); check('stair bubble at the top of the stairs', c.door === 'down');
-  await press('#pawBtn'); await sleep(200); await holdBtn('#leftBtn', 3200); c = await waitFor(s => s.stair === null && s.y === 0, 6000); check('walk back down the stairs', c.stair === null && c.y === 0, `y=${c.y}`);
+  await press('#pawBtn'); await sleep(200); const downstairs = await holdUntil('#leftBtn', () => !__DDW3.player.stair && __DDW3.player.y === 0); c = await S(); check('walk back down the stairs', downstairs && c.stair === null && c.y === 0, `y=${c.y}`);
   await page.evaluate(() => __DDW3.teleport(1003.2)); await sleep(300); await press('#pawBtn'); await sleep(500); c = await S(); check('the front door inside takes you back outside', c.layer === '' && Math.abs(c.x - 190) < .1);
   // ---------- sound + saving ----------
   { const s0 = (await S()).sound, hit = await page.evaluate(() => { const b = document.getElementById('soundBtn').getBoundingClientRect(); const e = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2); return e && (e.id || e.className || e.tagName); }); await page.locator('#soundBtn').tap(); await sleep(100); /* (an earlier world tap can land on this button first, so check that a tap FLIPS the setting) */ check('sound button turns sound off (flips the sound setting)', (await S()).sound === !s0, `was ${s0}, top element at the button: ${hit}`); }
@@ -313,6 +329,91 @@ const UG_F = -6;
   { await teleport(412); await page.evaluate(() => { const L = __DDW3.kingdom().luna; let done = false; L.root.traverse(o => { if (!done && o.userData.tap) { done = true; o.userData.tap(); } }); }); await sleep(300); await teleport(150); await sleep(800);
     const r = await page.evaluate(() => ({ wand: __DDW3.world.wand === true, wv: __DDW3.kingdom().wand.visible, crown: __DDW3.world.crown === true, cv: __DDW3.kingdom().crown.visible, crownInScene: (() => { let o = __DDW3.kingdom().crown; while (o.parent) o = o.parent; return o.isScene; })(), dx: Math.abs(__DDW3.kingdom().crown.position.x - __DDW3.player.x) }));
     check('Princess Luna gives a magic wand; the crown and wand stay with you far from the castle', r.wand && r.wv && r.crown && r.cv && r.crownInScene && r.dx < 1, JSON.stringify(r)); }
+  // ---------- build 35: 🚜 Happy Farm (map, train, activities, Truffle the piglet) ----------
+  await page.locator('#mapBtn').tap(); await sleep(300); await page.locator('.mpT', { hasText: '🚜' }).tap(); await sleep(2500); c = await S();
+  { const st = await page.evaluate(() => __DDW3.G.expansion.stats()); check('🚜 the map takes you to the Happy Farm, built at once', Math.abs(c.x + 412) < 1.5 && /farm:ready/.test(st), `x=${c.x.toFixed(1)} ${st}`); }
+  await teleport(-433.2); await page.evaluate(() => { __DDW3.player.facing = 1; }); await sleep(600); await tapWorld(-431, .75, -2.6); await sleep(400);
+  { const r = await page.evaluate(() => { const S = __DDW3.G.expansion._S.find(s => s.d.id === 'farm'); const hen = S.inter.find(i => i.x === -431); for (let k = 0; k < 4; k++) hen.run(); return __DDW3.world.disc.has('eggs'); }); check('tap the hen: she lays eggs and you count them', r); }
+  { const r = await page.evaluate(() => { const S = __DDW3.G.expansion._S.find(s => s.d.id === 'farm'); const ok = []; for (const x of [-420, -457, -478, -492, -503, -514, -524]) { const it = S.inter.find(i => i.x === x); if (it) { it.run(); if (x === -478) { it.run(); it.run(); it.run(); } } } for (const d of ['barn', 'sheep', 'garden', 'apples', 'windmill', 'ducks', 'tractor']) if (__DDW3.world.disc.has(d)) ok.push(d); return ok; });
+    check('the farm activities work (barn animals, rainbow sheep, carrots, apples, windmill, ducks, tractor)', r.length === 7, r.join(' ')); }
+  { const r = await page.evaluate(() => { const S = __DDW3.G.expansion._S.find(s => s.d.id === 'farm'); const pig = S.taps.find(o => o.userData && o.userData.pal === 'pig'); if (!pig) return 'no pig'; let m = null; pig.traverse(q => { if (!m && q.userData.tap) m = q; }); for (let k = 0; k < 3; k++) m.userData.tap(); return JSON.stringify(__DDW3.world.exp.pals); }); check('befriend Truffle the piglet (three taps): Truffle follows you', /pig.*follow":true/.test(r), r); }
+  check('the train line reaches the farm (🚜 station)', await page.evaluate(() => __DDW3.train.STATIONS.some(s => s.e === '🚜' && s.x < -500)));
+  // ---------- build 38: 🌊 Ocean Pier ----------
+  await page.locator('#mapBtn').tap(); await sleep(300); await page.locator('.mpT', { hasText: '🌊' }).tap(); await sleep(2500); c = await S();
+  { const st = await page.evaluate(() => __DDW3.G.expansion.stats()); check('🌊 the map takes you to the Ocean Pier, built at once', Math.abs(c.x + 544) < 1.5 && /pier:ready/.test(st), `x=${c.x.toFixed(1)} ${st}`); }
+  await teleport(-554); await page.evaluate(() => { __DDW3.player.facing = 1; }); await sleep(600);
+  { const r = await page.evaluate(() => { const S = __DDW3.G.expansion._S.find(s => s.d.id === 'pier'); const ok = []; for (const x of [-552, -566, -578.4, -606, -620, -636, -650]) { const it = S.inter.find(i => i.x === x); if (it) { it.run(); it.run(); it.run(); } } for (const d of ['fishing', 'tidepool', 'buoys', 'dolphin', 'treasure', 'sailboat', 'whale']) if (__DDW3.world.disc.has(d)) ok.push(d); return ok; });
+    check('the pier activities work (fishing, tide pool, buoys, dolphin, treasure, sailboat, whale)', r.length === 7, r.join(' ')); }
+  { const r = await page.evaluate(() => { const S = __DDW3.G.expansion._S.find(s => s.d.id === 'pier'); const seal = S.taps.find(o => o.userData && o.userData.pal === 'seal'); if (!seal) return 'no seal'; let m = null; seal.traverse(q => { if (!m && q.userData.tap) m = q; }); for (let k = 0; k < 3; k++) m.userData.tap(); return JSON.stringify(__DDW3.world.exp.pals); }); check('befriend Splash the seal (three taps): Splash follows you', /seal.*follow":true/.test(r), r); }
+  check('the train line reaches the pier (🌊 station at the far left)', await page.evaluate(() => __DDW3.train.STATIONS[0].e === '🌊' && __DDW3.train.STATIONS[0].x < -640));
+  // ---------- build 40: Clover the goat on the Adventure Trail ----------
+  await teleport(492); await page.evaluate(() => __DDW3.G.expansion.buildNow(492)); await sleep(500);
+  { const r = await page.evaluate(() => { const S = __DDW3.G.expansion._S.find(s => s.d.id === 'trail'); const goat = S.taps.find(o => o.userData && o.userData.pal === 'goat'); if (!goat) return 'no goat'; let m = null; goat.traverse(q => { if (!m && q.userData.tap) m = q; }); for (let k = 0; k < 3; k++) m.userData.tap(); return JSON.stringify(__DDW3.world.exp.pals); }); check('befriend Clover the goat on the Adventure Trail (three taps): Clover follows you', /goat.*follow":true/.test(r), r); }
+  // ---------- build 41: friends who follow you play together when you stand still ----------
+  await teleport(150); await sleep(500);
+  { const ok = await page.evaluate(() => new Promise(res => { const t0 = performance.now(); const f = () => { if (__DDW3.world.disc.has('palsplay')) res(true); else if (performance.now() - t0 > 40000) res(false); else setTimeout(f, 250); }; f(); }));
+    check('stand still with friends following: two of them play together (hearts and a giggle)', ok, `${await page.evaluate(() => __DDW3.G.expansion._followers().join(' '))}`); }
+  // ---------- build 43: the family's list ----------
+  // 1. the camera is further out, and at the Block Builder the whole wall (all 5 rows) is on screen
+  await teleport(214.4); await sleep(3500);
+  { const r = await page.evaluate(() => { const top = __DDW3.toScreen(214.4, 5.0, -1.7), bot = __DDW3.toScreen(214.4, 0, -1.7); return { top: Math.round(top.y), bot: Math.round(bot.y), h: innerHeight }; }); check('the Block Builder wall fits on screen, top row included', r.top > 0 && r.bot < r.h, JSON.stringify(r)); }
+  // 2. the learning corners are play spots with a floating toy (no signposts), and still open their games
+  { const r = await page.evaluate(() => (__DDW3.G.learnSigns || []).map(g => !!g.userData.toy && !!g.userData.ring)); check('the learning corners are play spots with a floating toy (no signposts)', r.length === 7 && r.every(Boolean), JSON.stringify(r)); }
+  // 3. the seesaw: walk onto it and it rocks you up and down; jump at the top for a super bounce
+  await teleport(632); await page.evaluate(() => __DDW3.G.expansion.buildNow(632)); await sleep(800);
+  await page.evaluate(() => { __DDW3.keys.right = true; }); for (let i = 0; i < 60 && (await page.evaluate(() => __DDW3.player.x)) < 635.6; i++) await sleep(100); await page.evaluate(() => { __DDW3.keys.right = false; });
+  { let hi = 0; for (let i = 0; i < 24; i++) { hi = Math.max(hi, await page.evaluate(() => __DDW3.player.y)); await sleep(150); } check('the seesaw rocks you up and down', hi > 1.2, `highest y=${hi.toFixed(2)}`); }
+  // 4. the stairs at the end of the world climb into the sky, and the rainbow gate takes you to the Sky Kingdom
+  await teleport(930); await page.evaluate(() => { __DDW3.player.y = 9.6; __DDW3.player.x = 933; }); await sleep(300);
+  await page.evaluate(() => { __DDW3.keys.right = true; }); c = await waitFor(s => s.y > 9 && s.x < 100, 30000); await page.evaluate(() => { __DDW3.keys.right = false; });
+  check('the rainbow stairs at the end of the world lead up into the Sky Kingdom', c.x < 100 && c.y > 9, `x=${c.x.toFixed(1)} y=${c.y.toFixed(1)}`);
+  { const r = await page.evaluate(() => { ['skystars', 'skysheep', 'skyballoons'].forEach(id => { const it = __DDW3.G.interact.find(i => i.disc === id); it && it.run(); }); return ['skystars', 'skysheep', 'skyballoons'].filter(d => __DDW3.world.disc.has(d)); }); check('the bigger Sky Kingdom: moon and stars, cloud sheep, colour balloons', r.length === 3, r.join(' ')); }
+  // 5. steer the sky whale: ▶ flies right, ▲ flies higher (and doesn't throw you off); JUMP hops off and you float down
+  await page.evaluate(() => { const P = __DDW3.player; P.x = 54; P.y = 9.55; P.z = -1.4; }); await sleep(500); await page.evaluate(() => __DDW3.G.tapWhale()); await sleep(500);
+  { const x0 = await page.evaluate(() => __DDW3.player.x); await page.evaluate(() => { __DDW3.keys.right = true; }); await waitFor(s => s.x > x0 + 6, 20000); /* (build 43: hold until it has flown, not a fixed time: late in the test this machine draws only 1-2 frames a second) */ await page.evaluate(() => { __DDW3.keys.right = false; __DDW3.keys.up = true; }); await sleep(1500); await page.evaluate(() => { __DDW3.keys.up = false; });
+    const r = await page.evaluate(() => ({ ride: __DDW3.player.ride && __DDW3.player.ride.type, x: __DDW3.player.x, y: __DDW3.player.y, inScene: __DDW3.G.whale.g.parent === __DDW3.G.scene && __DDW3.G.whale.g.visible })); check('steer the sky whale: it flies where you point (and stays visible: never in a scenery section)', r.ride === 'whale' && r.x > x0 + 5 && r.inScene, `x ${x0.toFixed(1)} → ${r.x.toFixed(1)}, y ${r.y.toFixed(1)}, whale in the scene: ${r.inScene}`);
+    await press('#jumpBtn'); await sleep(300); const v = await page.evaluate(() => [__DDW3.player.ride, __DDW3.player.vy]); check('JUMP hops off the flying whale and you float gently down', !v[0] && v[1] > -4, JSON.stringify(v)); }
+  await sleep(4000);
+  // 6. the deep pool: dive in, swim down through the tunnel into the underwater world, and climb back out
+  await teleport(-8); await sleep(800); await page.evaluate(() => __DDW3.G.deepSea.dive()); await sleep(600); c = await S(); check('tap the Splash Pool: you dive into the deep pool and swim', c.layer === 'sea', `layer=${c.layer}`);
+  await page.evaluate(() => { __DDW3.keys.right = true; }); c = await waitFor(s => s.x > 3012, 60000); await page.evaluate(() => { __DDW3.keys.right = false; });
+  check('swim down and through the tunnel at the bottom into the underwater world', c.x > 3012 && c.layer === 'sea', `x=${c.x.toFixed(1)}`);
+  { const r = await page.evaluate(() => { __DDW3.G.interact.filter(i => i.layer === 'sea').forEach(i => i.run()); return ['coral', 'fishschool', 'seaturtle', 'octopus', 'jellyfish', 'seatreasure', 'clam', 'seadolphins', 'seafloor'].filter(d => __DDW3.world.disc.has(d)); }); check('the sea creatures answer when tapped (coral, fish, turtle, octopus, jellyfish, treasure, clam, dolphins, sea floor)', r.length === 9, r.join(' ')); }
+  await page.evaluate(() => { __DDW3.player.x = 3005; __DDW3.player.y = -1; __DDW3.keys.up = true; }); c = await waitFor(s => s.layer === '', 20000); await page.evaluate(() => { __DDW3.keys.up = false; });
+  check('swim up to the top of the pool to climb out', c.layer === '' && Math.abs(c.x + 8) < 1, `layer=${c.layer} x=${c.x.toFixed(1)}`);
+  // ---------- build 45: the space rocket, with each place's real gravity ----------
+  await teleport(689); await page.evaluate(() => __DDW3.G.expansion.buildNow(689)); await sleep(500);
+  // (build 48) PAW beside the rocket climbs in (it used to blow the bubble fountain's bubbles: both stood at x 698)
+  { const t = await page.evaluate(() => __DDW3.G.actionTarget && __DDW3.G.actionTarget.disc); await press('#pawBtn');
+    const r = await page.evaluate(() => new Promise(res => { const t0 = performance.now(); const f = () => { const P = __DDW3.player; if ((P.ride && P.ride.phase === 'in' && document.querySelector('#rocketPanel.show')) || performance.now() - t0 > 30000) res({ ride: P.ride && P.ride.type + ':' + P.ride.phase, hidden: !!__DDW3.G.playerHidden, bubbles: __DDW3.world.disc.has('bubbles') }); else setTimeout(f, 50); }; f(); }));
+    check('PAW at the rocket: she climbs inside it (not bubbles) and the planet pictures come up', t === 'rocketmenu' && r.ride === 'rocket:in' && r.hidden, `target=${t} ride=${r.ride} hidden=${r.hidden}`); }
+  { const n = await page.locator('#rocketPanel.show .rkT').count(); check('the rocket shows a picture for Earth, the Moon, every planet and Pluto', n === 10, `${n} pictures`); }
+  { await page.locator('#rocketPanel .rkT.moon').tap(); await sleep(300); const r = await page.evaluate(() => ({ btn: !!document.querySelector('#blastBtn.show'), layer: __DDW3.player.layer, ride: __DDW3.player.ride && __DDW3.player.ride.phase }));
+    check('picking the Moon shows the big red button (no flying yet)', r.btn && r.layer === '' && r.ride === 'in', JSON.stringify(r)); }
+  { await page.evaluate(() => { __DDW3.G.rkLog = { phases: new Set(), top: 0 }; }); await page.locator('#blastBtn').tap({ force: true }); /* (it pulses) */
+    /* (the game records each phase it runs: the slow test browser can draw just one frame of the short test-mode countdown) */
+    const seen = await page.evaluate(() => new Promise(res => { const t0 = performance.now(); const f = () => { const L = __DDW3.G.rkLog; if (__DDW3.player.layer === 'space' || performance.now() - t0 > 60000) res({ ph: [...L.phases], top: L.top }); else setTimeout(f, 50); }; f(); }));
+    check('the red button: countdown, then the rocket lifts off the pad with her inside', seen.ph.includes('count') && seen.ph.includes('lift') && seen.top > .5, `phases ${seen.ph.join(',')}, rose ${seen.top.toFixed(1)} m`); }
+  // (build 48) flying is now a real ride: wait until the rocket has landed at the place and she has climbed out
+  const flyTo = id => page.evaluate(id => { __DDW3.G.launchTo(id); return new Promise(res => { const t0 = performance.now(); const f = () => { const P = __DDW3.player, r = __DDW3.G.rockets[id]; if ((!P.ride && r && Math.abs(P.x - r.x) < 4 && P.layer === (id === 'earth' ? '' : 'space')) || performance.now() - t0 > 60000) res(); else setTimeout(f, 50); }; setTimeout(f, 50); }); }, id);
+  // (the game records each jump's peak on every physics step: a Jupiter hop is over in a third of a second, faster than this slow test browser draws frames)
+  const jumpPeak = async () => { await page.evaluate(() => { __DDW3.G.spaceLastJump = 0; }); await press('#jumpBtn'); return page.evaluate(() => new Promise(res => { const t0 = performance.now(); const f = () => { const h = __DDW3.G.spaceLastJump; if (h > 0 || performance.now() - t0 > 60000) res(h || 0); else setTimeout(f, 50); }; f(); })); };
+  { c = await waitFor(s => s.layer === 'space', 20000); const g = await page.evaluate(() => __DDW3.G.spaceG);
+    { const r = await page.evaluate(() => new Promise(res => { const t0 = performance.now(); const f = () => { const P = __DDW3.player; if (!P.ride || performance.now() - t0 > 30000) res({ ride: P.ride && P.ride.phase, hidden: !!__DDW3.G.playerHidden, x: P.x - __DDW3.G.rockets.moon.x }); else setTimeout(f, 50); }; f(); }));
+      check('on the Moon the rocket lands on its pad and she climbs out', !r.ride && !r.hidden && Math.abs(r.x - 2.5) < .5, JSON.stringify(r)); }
+    check('fly to the Moon: real Moon gravity (1.62 / 9.81 of Earth\'s)', c.layer === 'space' && Math.abs(g - 1.62 / 9.81) < .001, `layer=${c.layer} g=${g && g.toFixed(3)}`);
+    await sleep(800); const top = await jumpPeak(); check('on the Moon you jump about six times higher', top > 9, `jumped to ${top.toFixed(1)} m (Earth ≈ 1.8 m)`); }
+  { await flyTo('jupiter'); c = await waitFor(s => s.layer === 'space', 20000); await sleep(800); const top = await jumpPeak(); check('on Jupiter the strong gravity allows only tiny hops', top < 1.1 && top > .2, `jumped to ${top.toFixed(2)} m`); }
+  { await flyTo('pluto'); c = await waitFor(s => s.layer === 'space', 20000); const g = await page.evaluate(() => __DDW3.G.spaceG); check('Pluto has the weakest gravity of all (0.62 / 9.81)', Math.abs(g - .62 / 9.81) < .001, `g=${g.toFixed(3)}`); }
+  // (build 47) every planet is its own place: its own aliens and activities that fit it (tap them all on each one)
+  { const found = [], missing = [];
+    for (const id of ['moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto']) { await flyTo(id); await waitFor(s => s.layer === 'space', 20000); await sleep(400);
+      const r = await page.evaluate(id => { const its = __DDW3.G.interact.filter(i => i.layer === 'space' && i.x > __DDW3.G.spaceBounds[0] - 2 && i.x < __DDW3.G.spaceBounds[1] + 2 && i.disc && !String(i.disc).startsWith('space_')); its.forEach(i => i.run()); return { n: its.length, alien: __DDW3.world.disc.has('alien_' + id) }; }, id);
+      (r.alien && r.n >= 3 ? found : missing).push(`${id}:${r.n}${r.alien ? '' : ' (no alien)'}`); }
+    check('every planet has its own aliens and at least 2 activities of its own', missing.length === 0, (missing.length ? 'MISSING ' + missing.join(' ') + ' | ' : '') + found.join(' ')); }
+  { await flyTo('earth'); c = await waitFor(s => s.layer === '', 20000); check('fly home to Earth: back at the launch pad', c.layer === '' && Math.abs(c.x - 688.5) < 3, `layer=${c.layer} x=${c.x.toFixed(1)}`); }
+  // the voice can be chosen by a grown-up (the test browser may have no voices: the panel must still work)
+  check('the ⚙️ panel has a voice chooser', await page.evaluate(() => !!document.querySelector('#perfPanel .ppVoices') && typeof __DDW3.G.voice === 'object' ? true : !!document.querySelector('#perfPanel .ppVoices')));
   // ---------- build 27: the learning games work for a child who can't read ----------
   { const a = await page.evaluate(() => __DDW3.G.learning.audit()); check('every learning game meets the pre-reader standard (spoken instruction and hint, demo, no words to read)', a.every(x => x.ok), JSON.stringify(a.filter(x => !x.ok)).slice(0, 200)); }
   await page.evaluate(() => __DDW3.G.learning.showCorner('num')); await sleep(200); await page.locator('#learn .lmenuitem[data-id="count"]').tap(); await sleep(600);

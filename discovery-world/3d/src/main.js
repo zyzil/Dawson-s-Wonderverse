@@ -6,14 +6,18 @@
 // No timers, no losing, no reading needed. Works offline (one HTML file).
 // ===================================================================
 import * as THREE from 'three';
-import { SAFE_GRAPHICS, GRAPHICS, GRAPHICS_TRIALS } from './graphics.js';
-import { PORTRAITS } from './portraits.js';
-import { waitForGpu, makeWarmTarget } from './gpu-work.js';
-import { primeShadowMap } from './shadow-preflight.js';
-import { checkWorldShadows } from './shadow-world-check.js';
 
 import { Sound, NOTES } from './audio.js';
+import { initAdventures, destinationArt } from './adventures.js';
+import { isVisibleTarget } from './interaction-targets.js';
+import { createPlayroomViewport } from './playroom3d.js';
+import { initNursery } from './nursery.js';
+import { initComfort } from './comfort.js';
+import { ADVENTURES } from './adventure-state.js';
 import { CREATURES, makeCreature, makeFluff, toy, starGeometry } from './creatures.js';
+import { makeToyModel } from './toy-models.js';
+import { initSea, SEA } from './sea.js';
+import { initSpace } from './space.js';
 import { buildWorld, RAINBOW } from './world.js';
 import { UG, inShaftX, buildUnderground } from './underground.js';
 import { initFriends, PET_COLS, EARS, TAILS, PATS } from './friends.js';
@@ -36,41 +40,6 @@ import { SCULPT_STATS } from './sculpt.js';
 import { FUR } from './fur.js';
 
 const $ = id => document.getElementById(id);
-const GRAPHICS_CHECK = new URLSearchParams(location.search).get('trial') === '1';
-let graphicsStage = 'Creating renderer', graphicsLost = false;
-let localWarmupPending = GRAPHICS.localShadowWarmup;
-const graphicsReport = { build: 48, profile: GRAPHICS, userAgent: navigator.userAgent };
-const graphicsStep = stage => { graphicsStage = stage; };
-function showGraphicsReport() {
-  if (!GRAPHICS_CHECK || $('copyGraphicsReport')) return;
-  const b = document.createElement('button'), pre = document.createElement('pre');
-  b.id = 'copyGraphicsReport'; b.textContent = 'Copy graphics report';
-  pre.id = 'graphicsReport'; pre.style.cssText = 'white-space:pre-wrap;text-align:left;max-width:90vw;max-height:30vh;overflow:auto;font-size:12px';
-  pre.hidden = true;
-  b.onclick = async () => {
-    pre.textContent = JSON.stringify(graphicsReport, null, 2); pre.hidden = false;
-    try { await navigator.clipboard.writeText(pre.textContent); b.textContent = 'Copied'; }
-    catch { b.textContent = 'Copy the report below'; }
-  };
-  $('oops').append(b, pre);
-}
-// Only explicit trial links show this return control, even if startup fails.
-if (GRAPHICS_CHECK) {
-  const link = document.createElement('a'); link.className = 'graphicsTrialBack';
-  link.href = 'graphics-tests.html?build=48';
-  const trialMode = new URLSearchParams(location.search).get('graphics');
-  const trialLabel = trialMode === 'full-basic-shadows' ? 'Basic shadows · ' + (GRAPHICS.packedShadowDepth ? 'colour shadow map' : GRAPHICS.uniformBones ? 'uniform bones' : GRAPHICS.receiverShadowPrograms ? 'receiver shaders' : GRAPHICS.worldShadowCheckAreas ? 'area checks' : GRAPHICS.worldShadowCheck ? 'world checks' : GRAPHICS.shadowPreflight ? 'canvas-first startup' : GRAPHICS.localShadowWarmup ? 'local startup' : 'original startup')
-    : trialMode === 'full-no-shadows' ? 'Full detail, no shadow maps'
-    : GRAPHICS.restored.map(k => GRAPHICS_TRIALS.find(t => t.key === k).label).join(', ') || 'Working baseline';
-  link.textContent = '↩ Graphics checks · ' + trialLabel + (trialMode !== 'full-basic-shadows' && GRAPHICS.shadows && GRAPHICS.shadowType === 'basic' ? ' · basic sampling' : '');
-  link.style.cssText = 'position:fixed;top:4px;left:50%;transform:translateX(-50%);z-index:1000;padding:8px 14px;border-radius:20px;background:#fff;color:#4b2a8a;font:700 13px system-ui;max-width:90vw;text-align:center;text-decoration:none;box-shadow:0 2px 12px #0005';
-  document.body.appendChild(link);
-}
-// Pre-rendered pictures are available on the first visit, including devices
-// whose canvas readback returned blank pictures in the old portrait cache.
-document.querySelectorAll('[data-c]').forEach(el => {
-  const img = el.querySelector('img'); if (img && PORTRAITS[el.dataset.c]) img.src = PORTRAITS[el.dataset.c];
-});
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, k) => a + (b - a) * k;
 const SAVE_KEY = 'dawsons-discovery-world-3d-v1';
@@ -84,76 +53,13 @@ const LIGHT = { env: .55, hemi: .7, sun: 2.85, rim: .55, exposure: .95 };
 const canvas = $('game');
 // phones: start lighter (no MSAA at high pixel density, smaller shadow map, 1.5x resolution)
 const MOBILE = matchMedia('(pointer: coarse)').matches || /iPhone|iPad|Android/.test(navigator.userAgent);
-// Keep the existing graphics settings when they work; retry simpler WebGL 2
-// settings before giving up. Three.js r187 cannot render with WebGL 1.
-function createRenderer(canvas) {
-  const compatible = [
-    { antialias: false, powerPreference: 'default' },
-    { antialias: false, powerPreference: 'low-power' },
-  ];
-  // A separate test URL can skip the original request if it crashes a driver
-  // instead of returning a normal context-creation error.
-  const params = new URLSearchParams(location.search);
-  const requested = { antialias: GRAPHICS.antialias, powerPreference: GRAPHICS.power ? 'high-performance' : 'default' };
-  const canvasTrial = (params.has('restore') || ['full-no-shadows', 'full-basic-shadows'].includes(params.get('graphics')))
-    && (GRAPHICS.restored.includes('antialias') || GRAPHICS.restored.includes('power'));
-  // A canvas trial must fail visibly if its request is rejected. Silently
-  // falling back would make an unsupported feature appear to have passed.
-  const attempts = canvasTrial
-    ? [requested]
-    : (!GRAPHICS.antialias && !GRAPHICS.power) || params.get('graphics') === 'compatible'
-    ? compatible : [requested, ...compatible];
-  const failures = [];
-  let detail = '';
-  const onCreationError = e => { detail = e.statusMessage || ''; };
-  canvas.addEventListener('webglcontextcreationerror', onCreationError);
-  try {
-    for (const options of attempts) {
-      detail = '';
-      try {
-        return new THREE.WebGLRenderer({ canvas, ...options });
-      } catch (e) {
-        // Do not hide an unrelated renderer/shader initialization bug.
-        if (!/Error creating WebGL context/.test(e.message || '')) throw e;
-        detail = detail || e.message;
-      }
-      failures.push(`${options.powerPreference}, AA=${options.antialias}: ${detail || 'unavailable'}`);
-    }
-    // The existing error screen displays this message. Do not probe WebGL 1 on
-    // this canvas: it cannot be used by this Three.js version.
-    console.error('WebGL 2 startup attempts:', failures);
-    throw new Error('WebGL 2 could not start. Update Chrome and restart the phone, then try again. ' +
-      'If it still fails, send the phone model and Chrome version. Browser detail: ' + failures[failures.length - 1]);
-  } finally {
-    canvas.removeEventListener('webglcontextcreationerror', onCreationError);
-  }
-}
-const renderer = createRenderer(canvas);
-renderer.shadowMap.receiverOnly = GRAPHICS.receiverShadowPrograms;
-renderer.uniformBones = GRAPHICS.uniformBones;
-renderer.shadowMap.packedDepth = GRAPHICS.packedShadowDepth;
-if (GRAPHICS_CHECK) {
-  const gl = renderer.getContext(), debug = gl.getExtension('WEBGL_debug_renderer_info');
-  graphicsReport.renderer = gl.getParameter(debug ? debug.UNMASKED_RENDERER_WEBGL : gl.RENDERER);
-  graphicsReport.contextAttributes = gl.getContextAttributes();
-}
-canvas.addEventListener('webglcontextlost', e => {
-  e.preventDefault(); graphicsLost = true;
-  graphicsReport.lastSubmittedStage = graphicsStage;
-  graphicsReport.contextLost = true; graphicsReport.lossDetail = e.statusMessage || '(browser supplied no reason)';
-  window.__oops && window.__oops('The browser reset the 3D graphics. Tap Try again. If Chrome says graphics are blocked, close Chrome completely and reopen the game.');
-  showGraphicsReport();
-});
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); window.__oops && window.__oops('The device reset the 3D graphics (it may be low on memory). Tap Try again.'); });
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.debug.checkShaderErrors = TEST; // (build 24: the shader error check forces the browser to wait for each shader the first time it is used; on only in test mode)
 renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = LIGHT.exposure;
-renderer.shadowMap.enabled = !TEST && GRAPHICS.shadows;
-// Basic samples depth as sampler2D and compares it in the shader. PCF uses a
-// sampler2DShadow / hardware comparison path. Basic trials also bound startup
-// shadow work below; warmup=original retains the earlier comparison.
-renderer.shadowMap.type = GRAPHICS.shadowType === 'basic' ? THREE.BasicShadowMap : THREE.PCFShadowMap;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap; // (filtered, with a blur radius below)
 const scene = new THREE.Scene();
-graphicsStep('Generating sky environment');
 const pmrem = new THREE.PMREMGenerator(renderer);
 // build 18 (lighting audit): reflections and soft fill come from the SKY ONLY. (Before, a bright indoor
 // studio environment lit everything from every direction, brighter than the sun and with no shadows,
@@ -170,7 +76,7 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 scene.fog = new THREE.Fog('#e6d2f2', 55, 190); // build 18: atmospheric perspective only in the far distance (no haze over the play area)
 const camera = new THREE.PerspectiveCamera(38, 2, .3, 600); // (build 20: near .3 instead of .1 = 3x the depth precision, no z-fighting on wall details)
 const hemi = new THREE.HemisphereLight('#e4ecff', '#8f8a6a', LIGHT.hemi); scene.add(hemi);
-const sun = new THREE.DirectionalLight('#fff0d8', LIGHT.sun); sun.castShadow = !TEST && GRAPHICS.shadows;
+const sun = new THREE.DirectionalLight('#fff0d8', LIGHT.sun); sun.castShadow = true;
 sun.shadow.camera.layers.enable(1); /* (build 28) layer 1 = low-detail copies that only cast shadows */ sun.shadow.mapSize.set(MOBILE ? 1536 : 2048, MOBILE ? 1536 : 2048); /* (build 22: lighter on phones) */ sun.shadow.radius = 4; /* soft shadow edges */ Object.assign(sun.shadow.camera, { left: -13, right: 13, top: 10, bottom: -5, near: 1, far: 50 }); /* build 17: a tighter box = sharper shadows */ sun.shadow.bias = -.0004; sun.shadow.normalBias = .03;
 scene.add(sun, sun.target);
 // a soft cool light from behind: it outlines everything with a gentle rim, so shapes look rounder and more real
@@ -187,13 +93,15 @@ const cloudMat = toy('#ffffff', { r: .9, cc: 0, em: '#fff4fb', ei: .35 });
 for (let i = 0; i < 16; i++) { const c = new THREE.Group(); for (let k = 0; k < 5; k++) { const s = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), cloudMat); s.scale.setScalar(2 + (k % 3) * .8); s.position.set((k - 2) * 2.2, (k % 2) * 1.1, 0); c.add(s); } c.position.set(-20 + i * 16, 18 + (i % 3) * 4, -55 - (i % 2) * 15); scene.add(c); }
 
 // ---------------- game state ----------------
-const G = { scene, platforms: [], solids: [], taps: [], interact: [], camera };
+const G = { scene, renderer, platforms: [], solids: [], taps: [], interact: [], camera };
+G.playroom=createPlayroomViewport({renderer,G});
 const player = { groundZ: 0, x: 5, y: 0, z: 0, vx: 0, vy: 0, grounded: true, jumps: 0, facing: 1, ride: null, stair: null, layer: '', happy: 0, creature: 'pip' };
 const world = { disc: new Set(), bits: new Set(), secret: false, bubbleColor: '#bfe8ff', lastBuckets: [], paintColor: '#ff4f9a', rainbowHue: 0, trail: [], flash: 0, drumT: 0, mobileT: 0, wake: [0, 0, 0, 0, 0, 0] };
+let adventures = null;
 let started = false;
 buildWorld(G);
 buildUnderground(G);
-buildSky(G);
+buildSky(G); G.player = player; G.skyApi = { Sound, burst, discover: (id, m) => discover(id, m), toast: m => toast(m) }; // (build 43: the bigger Sky Kingdom's sounds, sparkles and words)
 const IN = G.inside;
 G.xylo.forEach(k => { k.key.userData.y0 = k.key.position.y; });
 G.platforms.forEach(z => { if (z.top) z.top.userData.s0 = z.top.scale.y; });
@@ -206,6 +114,7 @@ const pts = new THREE.Points(pGeo, new THREE.PointsMaterial({ size: .32, map: do
 pts.frustumCulled = false; scene.add(pts);
 const tmpC = new THREE.Color();
 function burst(x, y, z = 0, colors = ['#fff', '#ffe36e', '#ff9fd8'], n = 16, sp = 3) {
+  if (world.comfort?.calm) n = Math.min(3, n);
   for (let i = 0; i < n; i++) { if (parts.length >= PMAX) parts.shift(); const a = Math.random() * Math.PI * 2, u = Math.random() * 2 - 1; parts.push({ x, y, z, vx: Math.cos(a) * sp * Math.random(), vy: (Math.random() * 1.2 + .3) * sp, vz: Math.sin(a) * sp * Math.random() * .6, life: .6 + Math.random() * .6, c: tmpC.set(colors[i % colors.length]).toArray() }); }
 }
 function updateParticles(dt) {
@@ -226,16 +135,17 @@ function toast(msg) { const el = $('toast'); el.textContent = msg; el.classList.
 // what happened and what to try. Uses the phone's own speech voice; silent when the sound button is off.
 // (build 27) one shared voice (voice.js) for the world and the learning games, unlocked by her first tap
 let lastSpeak = 0;
-const voice = makeVoice({ isOn: () => Sound.on, TEST: TEST && !/[?&]voice/.test(location.search) }); G.voice = voice;
+const voice = makeVoice({ isOn: () => Sound.on && world.comfort?.speech !== false, TEST: TEST && !/[?&]voice/.test(location.search) }); G.voice = voice;
 for (const ev of ['pointerdown', 'touchend', 'click']) addEventListener(ev, () => voice.unlock(), { capture: true, passive: true });
 function speak(msg) {
-  if (TEST || !Sound.on) return;
+  if (TEST || !Sound.on || world.comfort?.speech === false) return;
+  if (world.comfort?.calm && performance.now() - lastSpeak < 6000) return;
   const text = msg.replace(/\(.*?\)/g, '');
   if (performance.now() - lastSpeak < 900) return; lastSpeak = performance.now();
   if (G.learning && G.learning.isOpen()) return; // (the learning games do their own talking)
   voice.speak(text);
 }
-function discover(id, msg) { if (world.disc.has(id)) return false; world.disc.add(id); if (msg) toast('✨ ' + msg); Sound.chime(); player.happy = 1.4; if (creature) creature.cheer(); burst(player.x, player.y + 2.2, player.z, undefined, 18); save(); return true; }
+function discover(id, msg) { if (id === 'fluffkin') adventures?.event({type:'activity',id:'fluff_found'}); if (id === 'fluffhome') adventures?.event({type:'activity',id:'fluff_home'}); if (world.disc.has(id)) return false; world.disc.add(id); if (msg) toast('✨ ' + msg); Sound.chime(); player.happy = 1.4; if (creature) creature.cheer(); burst(player.x, player.y + 2.2, player.z, undefined, 18); save(); return true; }
 function updateCounters() {
   $('bitsCount').textContent = world.bits.size;
   $('fluffCount').textContent = `${fluffs.filter(f => f.state === 'home').length}/6`;
@@ -246,7 +156,7 @@ let creature = null;
 // soft contact shadow on the ground under the creature (shrinks and fades as it jumps)
 const shadowMat = new THREE.MeshBasicMaterial({ map: G.aoTex, transparent: true, depthWrite: false, opacity: 1, polygonOffset: true, polygonOffsetFactor: -4 });
 const blob = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.1), shadowMat); blob.rotation.x = -Math.PI / 2; blob.renderOrder = 3; blob.userData.dynamic = true; /* (build 33: it follows you; never part of a scenery slice) */ scene.add(blob);
-function groundUnder(x, y) { let g = y > UG.ceil + .05 && !inShaftX(x) ? 0 : player.layer === 'in' ? 0 : UG.floor; if (player.layer === 'in' && y >= IN.f2 - .05) g = IN.f2; for (const z of G.platforms) if (z.layer === player.layer && x >= z.a && x <= z.b && z.y <= y + .01 && z.y > g) g = z.y; return g; }
+function groundUnder(x, y) { if (player.layer === 'sea') return SEA.floor; let g = y > UG.ceil + .05 && !inShaftX(x) ? 0 : player.layer === 'in' ? 0 : UG.floor; if (player.layer === 'in' && y >= IN.f2 - .05) g = IN.f2; for (const z of G.platforms) if (z.layer === player.layer && x >= z.a && x <= z.b && z.y <= y + .01 && z.y > g) g = z.y; return g; }
 function setCreature(kind) {
   if (creature) scene.remove(creature.root);
   player.creature = kind; creature = makeCreature(kind, { body: (world.styles || {})[kind] }); scene.add(creature.root);
@@ -337,7 +247,13 @@ const friends = initFriends(G, {
 });
 const kingdom = initKingdom(G, { scene, Sound, burst: (x, y, z, c, n, sp) => burst(x, y, z, c, n, sp), discover: (id, msg) => discover(id, msg), toast: m => toast(m), world, player, friends, saveSoon: () => saveSoon(), startSlide: path => { if (!player.ride) startSlide(path); }, snapCamera: () => snapCamera() });
 // (build 29) the new neighbourhoods past the rainbow gate: streamed in as you come near
-const expansion = initExpansion(G, { scene, Sound, world, player, MOBILE, getKeys: () => keys, startSlide: path => { if (!player.ride) startSlide(path); }, makeTree, burst: (x, y, z, c, n, sp) => burst(x, y, z, c, n, sp), discover: (id, msg) => discover(id, msg), toast: m => toast(m), saveSoon: () => saveSoon(), compile: g => compileGroup(g), warm: g => warmGroup(g), goHome: () => travel(TRAVEL[0]), travelTo: (x, icon, name) => travel([icon, name, x]) });
+const sea = initSea(G, { scene, Sound, player, toast: m => toast(m), discover: (id, m) => discover(id, m), burst: (...a) => burst(...a), flash: () => { world.flash = 1; }, snap: () => snapCamera(), compile: g => compileGroup(g) }); G.deepSea = sea; // (build 43: the deep pool and the underwater world)
+// (build 45) the space rocket: the Moon, the planets and Pluto, with their real gravity
+const ROCKET_PAD = 686;
+const space = initSpace(G, { registerRocket: (...a) => registerRocket(...a), scene, Sound, player, toast: m => toast(m), discover: (id, m) => discover(id, m), burst: (...a) => burst(...a), keysHeld: () => keys.left || keys.right, flash: () => { world.flash = 1; }, snap: () => snapCamera(), compile: g => compileGroup(g), camX: () => camT.x,
+  openPicker: () => openRocket(), home: () => { const P = player; world.flash = 1; P.layer = ''; P.ride = null; P.x = ROCKET_PAD + 2.5; P.y = 0; P.z = 0; P.vx = P.vy = 0; P.grounded = true; expansion.buildNow(ROCKET_PAD); snapCamera(); Sound.chime(); toast('🌍 Home to planet Earth!'); saveSoon(); } });
+G.space = space;
+const expansion = initExpansion(G, { registerRocket: (...a) => registerRocket(...a), scene, Sound, world, player, MOBILE, toSky: () => G.toSky(), rocket: () => openRocket(), event: e => adventures?.event(e), catch: () => adventures?.catch(), gallery: () => adventures?.gallery(), getKeys: () => keys, startSlide: path => { if (!player.ride) startSlide(path); }, makeTree, burst: (x, y, z, c, n, sp) => burst(x, y, z, c, n, sp), discover: (id, msg) => discover(id, msg), toast: m => toast(m), saveSoon: () => saveSoon(), compile: g => compileGroup(g), warm: g => warmGroup(g), goHome: () => travel(TRAVEL[0]), travelTo: (x, icon, name) => travel([icon, name, x]) });
 G.expansion = expansion;
 
 // ---------------- bubbles ----------------
@@ -393,11 +309,11 @@ function updatePit(dt) {
 G.pit.balls.forEach((b, i) => { pitM.makeTranslation(b.x, b.y, b.z); G.pit.mesh.setMatrixAt(i, pitM); });
 
 // ---------------- music, trampoline, orbs, house toys ----------------
-G.playKey = k => { k.lit = 1; Sound.bell(NOTES[k.i], .06); burst(k.x, .5, 0, [RAINBOW[k.i], '#fff'], 8, 2); discover('xylophone', 'A giant xylophone! Walk and jump along it.'); };
+G.playKey = k => { k.lit = 1; Sound.withMusic(() => Sound.bell(NOTES[k.i], .06)); burst(k.x, .5, 0, [RAINBOW[k.i], '#fff'], 8, 2); discover('xylophone', 'A giant xylophone! Walk and jump along it.'); };
 G.tapTramp = () => { world.trampT = 1; Sound.boing(); const P = player; if (!P.ride && P.layer === '' && Math.abs(P.x - 34) < 3 && P.grounded) { P.vy = 13.5; P.grounded = false; P.jumps = 1; } discover('trampoline', 'Boing! Super bounce!'); };
 G.zapOrb = o => { o.zap = 1; Sound.tone(1400, .25, 'sawtooth', .02, .4); Sound.twinkle(); burst(o.x, 1.9, -.8, ['#c9a6ff', '#fff', '#9fe6ff'], 24, 4); discover('orb', 'Zap! Sparkly glow orb!'); };
-G.tapDrum = () => { world.drumT = 2; Sound.tone(110, .3, 'sine', .09, .4); Sound.tone(220, .15, 'triangle', .05, .5, .05); burst(1020, 1.2, -1.6, RAINBOW, 14, 3); discover('fluffdrum', 'Boom! Everybody jumps!'); };
-G.tapMobile = () => { world.mobileT = 4; [4, 2, 0, 2, 4, 4, 4].forEach((n, i) => Sound.bell(NOTES[n], .03, i * .3)); discover('mobile', 'The twinkly mobile spins round.'); };
+G.tapDrum = () => { world.drumT = 2; Sound.withMusic(() => { Sound.tone(110, .3, 'sine', .09, .4); Sound.tone(220, .15, 'triangle', .05, .5, .05); }); burst(1020, 1.2, -1.6, RAINBOW, 14, 3); discover('fluffdrum', 'Boom! Everybody jumps!'); };
+G.tapMobile = () => { world.mobileT = 4; Sound.withMusic(() => [4, 2, 0, 2, 4, 4, 4].forEach((n, i) => Sound.bell(NOTES[n], .03, i * .3))); discover('mobile', 'The twinkly mobile spins round.'); };
 G.tapBed = j => { const f = fluffs[j]; if (f.state === 'home') { world.wake[j] = 2; Sound.giggle(); discover('fluffbed', 'Wake up, little Fluffkin! Bounce!'); } else { Sound.click(); burst(G.beds[j].x, IN.f2 + 1, -2.8, ['#fff', '#e3b0ee'], 8, 2); discover('emptybed', 'This bed is waiting for a lost Fluffkin.'); } };
 
 // ---------------- rides: slide, carousel, Ferris wheel ----------------
@@ -423,16 +339,23 @@ function updateRide(dt) {
     if (R.u >= 1) { const e = path.getPointAt(1); P.x = e.x + .5; P.y = Math.max(0, e.y - .55); P.z = e.z; endRide(4.5, 3); P.facing = 1; burst(P.x, .5, P.z, ['#fff', '#ffe36e', '#9fe6ff'], 16, 2.5); Sound.boing(); return; }
     path.getPointAt(R.u, V); P.x = V.x; P.y = V.y - .62; P.z = V.z; const tg = path.getTangentAt(R.u); P.facing = tg.x >= 0 ? 1 : -1; P.vx = 6 * P.facing;
     if (Math.random() < dt * 25) burst(P.x - tg.x * .6, P.y + .3, P.z - tg.z * .6, ['#fff', '#ffe36e', '#9fe6ff'], 1, .6);
+  } else if (R.type === 'rocket') { rocketRide(dt, R);
   } else if (R.type === 'kart' || R.type === 'train') {
     // (moved by kart.js / train.js)
   } else if (R.type === 'whale') {
-    // riding the sky whale: one big loop over the Cloud Kingdom, then back home (JUMP hops off onto the clouds)
-    const W = G.whale; R.u += dt / 20;
-    if (R.u >= 1) { const g = W.g.position; P.x = g.x; P.y = g.y + 1.6; P.z = W.g.position.z; endRide(0, 2); return; }
-    const a = R.u * Math.PI * 2, x = W.x + Math.sin(a) * 8, y = W.y + 1.4 + Math.sin(a * 2) * 1.2, vx = Math.cos(a);
-    W.g.position.set(x, y, -7.5); W.g.rotation.y += ((vx >= 0 ? 0 : Math.PI) - W.g.rotation.y) * Math.min(1, dt * 2); W.g.rotation.z = Math.cos(a * 2) * .12 * (vx >= 0 ? 1 : -1);
-    P.x = x; P.y = y + 1.55; P.z = -7.5; P.facing = vx >= 0 ? 1 : -1; P.vx = vx * 3; P.grounded = true;
-    if (Math.random() < dt * .4) W.spout = 1.5;
+    // (build 43) STEER THE SKY WHALE anywhere over the world: ◀ ▶ (or slide sideways) fly left and right, ▲ ▼ (or slide up
+    // and down) fly higher and lower. JUMP hops off and you float gently down. Neighbourhoods load ahead as you fly, like
+    // on the train. With no input the whale just hovers and bobs.
+    const W = G.whale, g = W.g.position, sd = stick && stick.active ? stick : null;
+    const ix = (keys.right ? 1 : 0) - (keys.left ? 1 : 0) || (sd ? Math.max(-1, Math.min(1, sd.dx / 55)) : 0), iy = (keys.up ? 1 : 0) - (keys.down ? 1 : 0) || (sd ? Math.max(-1, Math.min(1, -sd.dy / 55)) : 0);
+    R.vx = (R.vx || 0) + (ix * 11 - (R.vx || 0)) * Math.min(1, dt * 2.2); R.vy = (R.vy || 0) + (iy * 5 - (R.vy || 0)) * Math.min(1, dt * 2.5);
+    R.t = (R.t || 0) + dt; const bob = Math.sin(R.t * 1.6) * .25;
+    let x = g.x + R.vx * dt, y = (R.alt ?? g.y) + R.vy * dt; x = clamp(x, EXP.xMin + 4, EXP.x1 - 4); y = clamp(y, 6, 32); R.alt = y;
+    const z = g.z + (-1.2 - g.z) * Math.min(1, dt * .8); // (it comes forward over the path, so the world below stays in view)
+    W.g.position.set(x, y + bob, z); if (Math.abs(R.vx) > .3) W.g.rotation.y += ((R.vx >= 0 ? 0 : Math.PI) - W.g.rotation.y) * Math.min(1, dt * 3); W.g.rotation.z = clamp(R.vy * .05, -.25, .25) * (W.g.rotation.y > 1.5 ? -1 : 1);
+    W.tail.rotation.y = Math.sin(R.t * (3 + Math.abs(R.vx) * .3)) * .4;
+    P.x = x; P.y = y + bob + 1.55; P.z = z; P.facing = W.g.rotation.y > 1.5 ? -1 : 1; P.vx = R.vx; P.grounded = true;
+    if (Math.abs(R.vx) > 6 && Math.random() < dt) W.spout = .8; if (!R.told && (ix || iy)) { R.told = 1; discover('whalefly', 'You are flying the sky whale! Go anywhere you like.'); }
   } else if (R.type === 'climb') {
     // climbing the rope ladder: slide your finger up/down (or arrow keys), or tap JUMP to climb a step
     const L = SKY.ladder; let v = 0;
@@ -519,21 +442,159 @@ G.useLift = () => {
   discover(down ? 'liftdown' : 'liftup', down ? 'Down, down in the glass lift!' : 'Up, up in the glass lift!');
 };
 G.startClimb = fromBottom => { const P = player, L = SKY.ladder; if (P.ride || P.layer !== '' || Math.abs(P.x - L.x) > 2) return; if (fromBottom && P.y > .5) return; if (!fromBottom && Math.abs(P.y - L.top) > .5) return; P.ride = { type: 'climb', boost: fromBottom ? .2 : 0 }; if (!fromBottom) P.y = L.top - .05; P.vx = P.vy = 0; Sound.tone(440, .15, 'triangle', .04, 1.3); discover('ladder', 'A rope ladder up to the sky! Hold ▲ to climb.'); };
-G.tapWhale = () => { const W = G.whale, P = player; if (!P.ride && P.layer === '' && P.y > SKY.y - .6 && Math.abs(P.x - W.g.position.x) < 10) { P.ride = { type: 'whale', u: 0 }; P.vx = P.vy = 0; Sound.whoosh(); discover('whaleride', 'You are riding the sky whale! JUMP to hop off.'); } W.spout = 2.4; [0, 4, 7, 4, 2, 0].forEach((n, i) => Sound.bell(NOTES[n % 8] / 2, .05, i * .22)); discover('whale', 'The sky whale sings you a song!'); };
+// (build 45) THE ROCKET MENU: big round planet pictures (no words to read). Tap one: the voice says its name, a
+// countdown, and off you fly. Earth (first) takes you home to the launch pad.
+const ROCKET_NAMES = { earth: 'Earth', moon: 'the Moon', mercury: 'Mercury', venus: 'Venus', mars: 'Mars', jupiter: 'Jupiter', saturn: 'Saturn', uranus: 'Uranus', neptune: 'Neptune', pluto: 'Pluto' };
+let rocketPanel = null, launching = false, blastBtn = null;
+// (build 48) A REAL ROCKET RIDE. PAW (or a tap) at the rocket: she walks up and climbs in, and her face shows in the round
+// window. The planet pictures come up; after she picks one, a BIG RED BUTTON appears. Pressing it starts the countdown
+// (rumble, smoke), then the rocket lifts off the pad on a flame and the camera follows it up into the sky. At the other end
+// the rocket comes down onto that pad with its flame, and she climbs out. JUMP (or ✖) climbs out before take-off.
+G.rockets = {};
+function registerRocket(key, g, win, x, layer, baseY) {
+  g.traverse(o => { o.userData.dynamic = true; }); // (it moves: never part of a scenery slice)
+  if (!g.userData.flame) { const fl = new THREE.Group(); fl.position.y = -.05; fl.visible = false; g.add(fl);
+    const outer = new THREE.Mesh(new THREE.ConeGeometry(.75, 2.6, 18), toy('#ff8a1e', { em: '#ff6a00', ei: 1.4 })); outer.rotation.x = Math.PI; outer.position.y = -1.3; fl.add(outer);
+    const inner = new THREE.Mesh(new THREE.ConeGeometry(.42, 1.6, 14), toy('#fff2a0', { em: '#ffe36e', ei: 1.6 })); inner.rotation.x = Math.PI; inner.position.y = -.8; fl.add(inner);
+    fl.traverse(o => { o.userData.dynamic = true; }); g.userData.flame = fl; }
+  G.rockets[key] = { g, win, x, layer, baseY, flame: g.userData.flame };
+}
+const inScene = o => { while (o.parent) o = o.parent; return o === scene; };
+const faceTex = {};
+function showFace(r, on) {
+  if (!r) return; const g = r.g; if (!on) { if (g.userData.face) g.userData.face.visible = false; return; }
+  const k = player.creature, src = portraits[k]; if (!src) return;
+  if (!faceTex[k]) { faceTex[k] = new THREE.TextureLoader().load(src); faceTex[k].colorSpace = THREE.SRGBColorSpace; }
+  if (!g.userData.face) { const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: faceTex[k] })); f.scale.set(.7, .7, 1); f.position.copy(r.win.position); f.position.z += .42; f.userData.dynamic = true; g.add(f); g.userData.face = f; }
+  g.userData.face.material.map = faceTex[k]; g.userData.face.visible = true;
+}
+function nearRocket() { const P = player; for (const k in G.rockets) { const r = G.rockets[k]; if ((r.layer || '') !== P.layer || !inScene(r.g) || Math.abs(r.x - P.x) > 7 || Math.abs(P.y - r.baseY) > 3) continue; if (P.layer === 'space' && k !== space.here()) continue; return k; } return null; }
+const seated = () => player.ride && player.ride.type === 'rocket' ? player.ride : null;
+const RK = TEST ? { board: .3, count: .5, lift: .7, land: .5 } : { board: .9, count: 3.3, lift: 3.4, land: 2.8 }; // seconds (wall clock: the same on a slow or fast screen)
+const rkNow = () => performance.now() / 1000;
+function boardRocket(key, quick) {
+  const P = player, r = G.rockets[key]; if (!r) return;
+  G.walkTo = null; keys.left = keys.right = false;
+  P.ride = { type: 'rocket', key, phase: 'board', t0: rkNow() - (quick ? RK.board : 0), x0: P.x, z0: P.z, y0: P.y }; P.vx = P.vy = 0; P.grounded = true;
+  Sound.tone(500, .25, 'triangle', .04, 1.5); discover('rocketin', 'You climbed into the rocket! Pick a planet, then press the big red button.');
+  if (quick) rocketRide(0, P.ride);
+}
+function climbOut(r) {
+  const P = player; G.playerHidden = false; hideBlast(); if (rocketPanel) rocketPanel.classList.remove('show');
+  if (r) { showFace(r, false); r.flame.visible = false; r.g.position.y = r.baseY; P.x = r.x + 2.5; P.y = r.layer === 'space' ? 0 : groundUnder(r.x + 2.5, r.baseY + 1); }
+  P.ride = null; P.z = 0; P.vx = P.vy = 0; P.grounded = true; P.jumps = 0; P.facing = 1; G.camLift = 0;
+}
+function hideBlast() { if (blastBtn) blastBtn.classList.remove('show'); }
+function showBlast(id) {
+  if (!blastBtn) { blastBtn = document.createElement('button'); blastBtn.id = 'blastBtn'; blastBtn.setAttribute('aria-label', 'Blast off'); blastBtn.innerHTML = '<i></i><b></b>'; document.body.appendChild(blastBtn);
+    blastBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); Sound.unlocked = true; blastOff(); }); }
+  const pl = id === 'earth' ? ['#5fa8ff', '#2f6fd0'] : space.places.find(p => p[0] === id)[1];
+  blastBtn.querySelector('b').style.background = `radial-gradient(circle at 35% 30%, ${pl[0]}, ${pl[1]})`; blastBtn.className = 'show ' + id;
+}
+G.blastOff = blastOff;
+function blastOff() {
+  const R = seated(); if (!R || R.phase !== 'in' || !R.dest || launching) return;
+  hideBlast(); launching = true; R.phase = 'count'; R.t0 = rkNow(); R.n = 3;
+  Sound.click(); Sound.tone(180, .5, 'square', .03, .9); voice.speak('Three... two... one... blast off!'); toast('🚀 3');
+  discover('blastoff', 'Press the big red button to blast off!');
+}
+function rocketRide(dt, R) {
+  const P = player, r = G.rockets[R.key]; if (!r || !inScene(r.g)) { launching = false; climbOut(null); return; }
+  const g = r.g, t = rkNow() - R.t0, gz = g.position.z;
+  if (G.rkLog) { G.rkLog.phases.add(R.phase); G.rkLog.top = Math.max(G.rkLog.top, g.position.y - r.baseY); } // (test record: every phase really run, the highest point)
+  if (R.phase === 'board') { // walk up to the door and hop in
+    const k = Math.min(1, t / RK.board); P.x = R.x0 + (r.x - R.x0) * k; P.z = R.z0 + (gz + 1.05 - R.z0) * k; P.y = R.y0 + (r.baseY + .2 - R.y0) * k + Math.sin(k * Math.PI) * .8; P.facing = r.x >= R.x0 ? 1 : -1;
+    if (k >= 1) { R.phase = 'in'; G.playerHidden = true; showFace(r, true); Sound.chime(); burst(r.x, r.baseY + 3.6, gz + 1, ['#fff3a6', '#ffffff', '#9fe6ff'], 10, 1.6); showPicker(); }
+    return;
+  }
+  P.x = r.x; P.y = r.baseY; P.z = gz + 1.05; P.vx = P.vy = 0; P.grounded = true;
+  if (R.phase === 'in') return;
+  if (R.phase === 'count') { // rumble and smoke on the pad, louder each second
+    const n = 3 - Math.floor(t / (RK.count / 3)); if (n < R.n && n > 0) { R.n = n; toast('🚀 ' + n); Sound.tone(180 + (3 - n) * 60, .4, 'square', .03, .9); }
+    G.shake = Math.max(G.shake || 0, .25 + t / RK.count * .6);
+    if (Math.random() < dt * 14) burst(r.x + (Math.random() - .5) * 2.6, r.baseY + .3, gz + .8, ['#ffffff', '#e4e4ee', '#c9c9d6'], 3, 2.2);
+    r.flame.visible = t > RK.count * .66; if (r.flame.visible) r.flame.scale.set(.5, .35 + Math.random() * .15, .5);
+    if (t >= RK.count) { R.phase = 'lift'; R.t0 = rkNow(); R.v = 0; R.lt = rkNow(); toast('🚀 Blast off!'); Sound.whoosh(); Sound.tone(110, 1.6, 'sawtooth', .05, 2.2); burst(r.x, r.baseY + .4, gz + .8, ['#ffd23f', '#ff9a2e', '#ffffff'], 26, 4); }
+    return;
+  }
+  if (R.phase === 'lift') { // up off the pad on a long flame, faster and faster; the camera rides along
+    const now = rkNow(), st = Math.min(.1, now - R.lt); R.lt = now; R.v += (3 + t * 14) * st; g.position.y += R.v * st;
+    r.flame.visible = true; r.flame.scale.set(1, 1 + Math.random() * .35 + Math.min(1, t), 1);
+    G.camLift = g.position.y - r.baseY; G.shake = Math.max(G.shake || 0, .9 - t * .2);
+    if (Math.random() < dt * 20) burst(r.x + (Math.random() - .5) * .6, g.position.y - 1, gz + .8, ['#ffd23f', '#ff9a2e', '#ffffff', '#ff5a3c'], 3, 2.5);
+    if (Math.random() < dt * 10) burst(r.x + (Math.random() - .5) * 3, r.baseY + .3, gz + .8, ['#ffffff', '#e4e4ee'], 3, 2.6);
+    if (t >= RK.lift) arrive(R, r);
+    return;
+  }
+  if (R.phase === 'land') { // down onto the new pad, slowing to a gentle touchdown
+    const k = Math.min(1, t / RK.land), h = 26 * (1 - k) * (1 - k); g.position.y = r.baseY + h; G.camLift = h;
+    r.flame.visible = true; r.flame.scale.set(.8, .6 + Math.random() * .3 + (1 - k) * .4, .8);
+    if (h < 3 && Math.random() < dt * 14) burst(r.x + (Math.random() - .5) * 3, r.baseY + .3, gz + .8, ['#ffffff', '#e4e4ee', '#c9c9d6'], 3, 2.2);
+    if (k >= 1) { G.shake = .5; Sound.boing(); burst(r.x, r.baseY + .3, gz + .8, ['#ffffff', '#e4e4ee', '#ffd23f'], 18, 3); climbOut(r); }
+  }
+}
+function arrive(R, r) {
+  const dest = R.dest; r.g.position.y = r.baseY; r.flame.visible = false; showFace(r, false); G.camLift = 0; launching = false; G.playerHidden = false;
+  player.ride = null; if (dest === 'earth') space.goHome(); else space.goTo(space.places.findIndex(p => p[0] === dest)); saveSoon();
+  const r2 = G.rockets[dest]; if (!r2 || !inScene(r2.g)) return; // (lands beside the pad without the ride if the rocket isn't there)
+  const P = player; P.ride = { type: 'rocket', key: dest, phase: 'land', t0: rkNow() }; G.playerHidden = true; showFace(r2, true);
+  P.x = r2.x; P.y = r2.baseY; P.z = r2.g.position.z + 1.05; r2.g.position.y = r2.baseY + 26; G.camLift = 26; snapCamera(); camT.y = P.y + 26;
+}
+function openRocket() {
+  if (launching || G.activityOpen) return;
+  const P = player, R = seated();
+  if (!R) { const k = !P.ride && !P.stair ? nearRocket() : null; if (k) { boardRocket(k); return; } }
+  else if (R.phase !== 'in') return;
+  showPicker();
+}
+function showPicker() {
+  if (!rocketPanel) { rocketPanel = document.createElement('div'); rocketPanel.id = 'rocketPanel';
+    const tiles = [['earth', ['#5fa8ff', '#2f6fd0']], ...space.places.map(p => [p[0], p[1]])];
+    rocketPanel.innerHTML = `<div class="mpIn"><button class="mpX" aria-label="close">✖</button><div class="rkGrid">${tiles.map(([id, [a, b]]) => `<button class="rkT ${id}" data-id="${id}" aria-label="${ROCKET_NAMES[id]}"><i style="background:radial-gradient(circle at 35% 30%, ${a}, ${b})"></i></button>`).join('')}</div></div>`;
+    document.body.appendChild(rocketPanel);
+    rocketPanel.querySelector('.mpX').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); rocketPanel.classList.remove('show'); Sound.click(); const R = seated(); if (R && R.phase === 'in') climbOut(G.rockets[R.key]); });
+    rocketPanel.querySelectorAll('.rkT').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); Sound.unlocked = true; launchTo(b.dataset.id); })); }
+  rocketPanel.querySelectorAll('.rkT').forEach(b => b.classList.toggle('here', b.dataset.id === (player.layer === 'space' ? space.here() : 'earth')));
+  rocketPanel.classList.add('show'); Sound.click(); voice.speak('Where shall we fly? Tap a planet!'); discover('rocketmenu');
+}
+G.openRocket = openRocket;
+// picking a planet: sitting in a rocket, the big red button comes up; (with no rocket nearby: straight off, as before)
+function launchTo(id, go) {
+  if (launching) return; if (rocketPanel) rocketPanel.classList.remove('show');
+  const atHome = player.layer !== 'space'; if ((id === 'earth' && atHome) || id === space.here()) { voice.speak(`We're already on ${ROCKET_NAMES[id]}!`); return; }
+  if (go && !seated() && !player.ride) { const k = nearRocket(); if (k) boardRocket(k, true); }
+  const R = seated(); if (R) { if (R.phase !== 'in') return; R.dest = id; showBlast(id); if (rocketPanel) rocketPanel.classList.remove('show'); if (go) blastOff(); else { voice.speak(`To ${ROCKET_NAMES[id]}! Press the big red button!`); Sound.twinkle(); } return; }
+  launching = true; voice.speak(`To ${ROCKET_NAMES[id]}! Three, two, one, blast off!`); toast('🚀 3... 2... 1... Blast off!');
+  Sound.tone(220, .6, 'sawtooth', .04, 1.8); setTimeout(() => Sound.whoosh(), 400); G.shake = 1.2;
+  for (let k = 0; k < 8; k++) setTimeout(() => burst(player.x, .5, player.z - 1, ['#ffd23f', '#ff9a2e', '#ffffff'], 6, 2.5), k * 150);
+  setTimeout(() => { launching = false; if (id === 'earth') space.goHome(); else space.goTo(space.places.findIndex(p => p[0] === id)); saveSoon(); }, TEST ? 200 : 1600);
+}
+G.launchTo = id => launchTo(id, true); // (tests: pick and press the button in one go)
+// (build 43) through the rainbow gate at the top of the stairs at either end of the world: into the Sky Kingdom
+G.toSky = () => { const P = player; world.flash = 1; P.layer = ''; P.x = 42; P.y = SKY.y + .05; P.z = SKY.z; P.vx = P.vy = 0; P.grounded = true; P.jumps = 0; P.facing = 1; snapCamera(); Sound.whoosh(); Sound.chime(); toast('🌈 Welcome to the Sky Kingdom!'); discover('skygate', 'The rainbow stairs lead up to the Sky Kingdom!'); saveSoon(); };
+G.tapWhale = () => { const W = G.whale, P = player; if (!P.ride && P.layer === '' && P.y > SKY.y - .6 && Math.abs(P.x - W.g.position.x) < 10) { P.ride = { type: 'whale', u: 0 }; P.vx = P.vy = 0; Sound.whoosh(); discover('whaleride', 'You are riding the sky whale! JUMP to hop off.'); } W.spout = 2.4; Sound.withMusic(() => [0, 4, 7, 4, 2, 0].forEach((n, i) => Sound.bell(NOTES[n % 8] / 2, .05, i * .22))); discover('whale', 'The sky whale sings you a song!'); };
 G.bounceUp = () => { const P = player; if (P.ride || Math.abs(P.x - (UG.shaft[0] + UG.shaft[1]) / 2) > 2.5 || P.y > UG.floor + 1.5) return; P.x = (UG.shaft[0] + UG.shaft[1]) / 2; P.y = UG.floor + 1; P.vy = 13.5; P.grounded = false; Sound.boing(); discover('mushroomup', 'Boing! Back up into the ball pit. Swim to the top!'); };
-G.singCrystal = k => { k.lit = 1; k.cd = 1; Sound.bell(NOTES[k.i % 8] / 2, .06); Sound.bell(NOTES[(k.i + 2) % 8], .025, .08); burst(k.x, UG.floor + 1.5, -1.4, [k.c, '#fff'], 10, 2); discover('crystal', 'Singing crystals! Tap them or walk past them.'); };
+G.singCrystal = k => { k.lit = 1; k.cd = 1; Sound.withMusic(() => { Sound.bell(NOTES[k.i % 8] / 2, .06); Sound.bell(NOTES[(k.i + 2) % 8], .025, .08); }); burst(k.x, UG.floor + 1.5, -1.4, [k.c, '#fff'], 10, 2); discover('crystal', 'Singing crystals! Tap them or walk past them.'); };
 G.tapGem = k => { k.spin = 1.5; Sound.twinkle(); Sound.bell(NOTES[(k.i * 2) % 8], .04); burst(k.x, k.y + .5, -.6, [RAINBOW[k.i], '#fff'], 14, 2.5); discover('gem', 'Sparkly gems!'); };
 DOORS.forEach(d => { d.sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: bubbleTex(d.kind), depthTest: false })); d.sprite.scale.set(1.2, 1.2, 1); d.sprite.renderOrder = 10; d.sprite.userData.tap = d.go; d.sprite.visible = false; scene.add(d.sprite); });
-function nearDoor() { const P = player; if (P.ride || P.stair) return null; return DOORS.find(d => d.layer === P.layer && Math.abs(P.x - d.x) < 1.6 && Math.abs(P.y - d.y) < .3); }
+function nearDoor() { const P = player; if (P.ride || P.stair) return null; return DOORS.find(d => d.layer === P.layer && Math.abs(P.x - d.x) < (world.comfort?.relaxed ? 2.2 : 1.6) && Math.abs(P.y - d.y) < .3); }
 
 // ---------------- hint arrow (picture-only guidance) ----------------
 const hint = new THREE.Group(); hint.userData.dynamic = true; scene.add(hint); // (build 33: it moves to whatever you can use; never part of a scenery slice)
-{ const c = new THREE.Mesh(new THREE.ConeGeometry(.28, .55, 20), toy('#ffd84a', { em: '#ffb000', ei: .5 })); c.rotation.x = Math.PI; hint.add(c); const r = new THREE.Mesh(new THREE.TorusGeometry(.3, .07, 10, 24), toy('#ff6fae', { em: '#ff6fae', ei: .4 })); r.position.y = .45; r.rotation.x = Math.PI / 2; hint.add(r); }
+{ /* (build 43) 'stand here and press the paw': a glowing circle on the path in front of the activity (a cone floating over
+     things covered them up) */ const r = new THREE.Mesh(new THREE.TorusGeometry(.62, .08, 10, 36), toy('#ffd84a', { em: '#ffb000', ei: .9 })); r.rotation.x = Math.PI / 2; hint.add(r);
+  const r2 = new THREE.Mesh(new THREE.TorusGeometry(.42, .05, 8, 30), toy('#ff6fae', { em: '#ff6fae', ei: .6 })); r2.rotation.x = Math.PI / 2; hint.add(r2); hint.userData.r2 = r2; }
 function updateHint(t) {
   const P = player; let best = null, bd = 13;
   if (!P.ride && !P.stair) for (const it of G.interact) { if (it.layer !== P.layer || world.disc.has(it.disc) || Math.abs(it.y - P.y) > 4 || (it.need && !it.need())) continue; const d = Math.abs(it.x - P.x); if (d < bd) { bd = d; best = it; } }
+  const actionable = actionTarget(); G.actionTarget=actionable; if (actionable) best = { ...actionable, hintY: actionable.hintY || 2.4 };
+  const door = nearDoor(); if (door) best = { x: door.x, y: door.y, hintY: 3.1 };
   hint.visible = !!best;
-  if (best) { hint.position.set(best.x, best.y + best.hintY + Math.sin(t * 4) * .15, .3); hint.rotation.y = t * 2; }
+  // (build 43) EVERY activity nearby twinkles now and then (a few sparkles every half second, from the existing particle
+  // pool): one consistent picture cue for 'you can play with this', without signs
+  if ((G.twinkleT = (G.twinkleT || 0) - 1 / 60) <= 0 && !P.ride && !world.comfort?.calm) { G.twinkleT = .5; const near = G.interact.filter(i => (i.layer || '') === P.layer && Math.abs(i.x - P.x) < 10 && Math.abs((i.y || 0) - P.y) < 5 && (!i.need || i.need()));
+    if (near.length) { const i = near[Math.floor(Math.random() * near.length)]; burst(i.x + (Math.random() - .5), (i.y || 0) + 1 + Math.random(), -1.6 - Math.random(), ['#fff3a6', '#ffffff', '#ffd1ec'], 3, .8); } }
+  if (best) { hint.position.set(best.x, best.y + .06, .4); const k = world.comfort?.calm ? 1 : 1 + Math.sin(t * 4) * .08; hint.scale.set(k, 1, k); hint.userData.r2.scale.setScalar(world.comfort?.calm ? 1 : 1 + Math.sin(t * 4 + 1.5) * .12); }
 }
 
 // ---------------- input ----------------
@@ -560,12 +621,13 @@ function stickMove(e) {
 }
 function stickEnd() { keys.left = keys.right = false; keys.scale = 1; stickUI(false); $('knob').style.transform = ''; stick = null; }
 function upAction() {
-  const P = player; if (!started || P.stair) return;
+  const P = player; if (!started || G.activityOpen || P.stair) return;
+  if (P.ride && P.ride.type === 'whale') return; // (build 43: on the whale, ▲ flies higher; only JUMP hops off)
   const d = nearDoor(); if (d && d.kind !== 'down') { d.go(); return; } // up at a door goes in/out; at the bottom of stairs or the lift goes up
   jump();
 }
 function downAction() {
-  const P = player; if (P.ride && P.ride.type === 'kart') { parkKart(); return; }
+  const P = player; if (P.ride && P.ride.type === 'whale') return; // (▼ flies lower) if (P.ride && P.ride.type === 'kart') { parkKart(); return; }
   if (P.ride && P.ride.type === 'train') { train.hopOff(); return; }
   if (!started || P.stair || P.ride) return;
   const d = nearDoor(); if (d && d.kind === 'down') { d.go(); return; }
@@ -591,29 +653,45 @@ function hold(id, key, onPress) {
 hold('leftBtn', 'left'); hold('rightBtn', 'right'); hold('upBtn', 'up', () => upAction()); hold('downBtn', 'down', () => downAction());
 const press = (id, fn) => $(id).addEventListener('pointerdown', e => { e.preventDefault(); Sound.unlocked = true; $(id).classList.add('pressed'); setTimeout(() => $(id).classList.remove('pressed'), 140); fn(); });
 press('jumpBtn', jump); press('pawBtn', doAction);
-addEventListener('keydown', e => { if (e.repeat) return; if (e.key === 'ArrowLeft') keys.left = true; if (e.key === 'ArrowRight') keys.right = true; if (e.key === ' ') jump(); if (e.key === 'ArrowUp') { keys.up = true; upAction(); } if (e.key === 'ArrowDown') { keys.down = true; downAction(); } if (e.key === 'e' || e.key === 'Enter') doAction(); });
+addEventListener('keydown', e => { if (e.repeat || G.activityOpen) return; if (e.key === 'ArrowLeft') keys.left = true; if (e.key === 'ArrowRight') keys.right = true; if (e.key === ' ') jump(); if (e.key === 'ArrowUp') { keys.up = true; upAction(); } if (e.key === 'ArrowDown') { keys.down = true; downAction(); } if (e.key === 'e' || e.key === 'Enter') doAction(); });
 addEventListener('keyup', e => { if (e.key === 'ArrowLeft') keys.left = false; if (e.key === 'ArrowRight') keys.right = false; if (e.key === 'ArrowUp') keys.up = false; if (e.key === 'ArrowDown') keys.down = false; });
 addEventListener('blur', () => { if (stick) stickEnd(); keys.left = keys.right = keys.up = keys.down = false; document.querySelectorAll('.pressed').forEach(b => b.classList.remove('pressed')); });
 
 function jump() {
-  const P = player; if (!started || P.stair) return;
+  const P = player; if (!started || G.activityOpen || P.stair) return;
+  if (P.ride && P.ride.type === 'rocket') { if (P.ride.phase === 'in') { climbOut(G.rockets[P.ride.key]); Sound.jump(1); } return; } // (build 48: JUMP climbs out before take-off)
   if (P.ride && P.ride.type === 'climb') { P.ride.boost = .25; return; }
   if (P.ride && P.ride.type === 'train') { train.whistle(); return; }
   if (P.ride && P.ride.type === 'kart') { if (P.ride.hop === 0) { P.ride.hopV = 7.5; Sound.boing(); discover('kartjump', 'Kart jump!'); } return; }
-  if (P.ride) { if (P.ride.type === 'slide') return; P.y = Math.max(P.y, 0); const z = P.z; endRide(P.ride.type === 'carousel' ? 3 * P.facing : 0, 7); P.z = z; Sound.jump(1); return; }
+  if (P.ride) { if (P.ride.type === 'slide') return; const wasWhale = P.ride.type === 'whale'; P.y = Math.max(P.y, 0); const z = P.z; endRide(P.ride.type === 'carousel' ? 3 * P.facing : 0, 7); P.z = wasWhale ? 0 : z; if (wasWhale) { P.floaty = true; toast('🪂 Floating down gently!'); } Sound.jump(1); return; }
   if (P.swim) { P.vy = 5.6; Sound.tone(420 + Math.random() * 120, .12, 'sine', .05, 1.6); burst(P.x, P.y + .3, P.z, ['#65dcec', '#ffda68', '#ff67ab', '#fff'], 6, 1.5); discover('swim', 'Swim, swim! Tap JUMP to swim up.'); return; }
-  if (P.jumps < 2) { const J = CREATURES[P.creature].jump; P.vy = J[P.jumps]; P.jumps++; P.grounded = false; Sound.jump(P.jumps); burst(P.x, P.y + .1, P.z, ['#ffec83', '#fff', '#a9efff'], 8, 1.5); if (P.jumps === 2) discover('doublejump', 'Double jump! Reach the high places.'); }
+  if (P.jumps < 2) { const J = CREATURES[P.creature].jump; P.vy = J[P.jumps] * (world.comfort?.relaxed ? 1.08 : 1); P.jumps++; P.grounded = false; Sound.jump(P.jumps); burst(P.x, P.y + .1, P.z, ['#ffec83', '#fff', '#a9efff'], 8, 1.5); if (P.jumps === 2) discover('doublejump', 'Double jump! Reach the high places.'); }
 }
 function doAction() {
-  const P = player; if (!started || P.stair) return;
+  const P = player; if (!started || G.activityOpen || P.stair) return;
+  if (P.ride && P.ride.type === 'rocket') { if (P.ride.phase === 'in') { if (P.ride.dest) blastOff(); else showPicker(); } return; } // (build 48: PAW in the rocket: the planets, or the red button once one is picked)
   if (P.ride && P.ride.type === 'kart') { parkKart(); return; }
   if (P.ride && P.ride.type === 'train') { train.hopOff(); return; }
   if (P.ride) { jump(); return; }
   const d = nearDoor(); if (d) { d.go(); return; }
-  let best = null, bd = 3.2;
-  for (const it of G.interact) { if (it.layer !== P.layer || (it.need && !it.need())) continue; const dd = Math.abs(it.x - P.x); if (dd < bd && Math.abs(it.y - P.y) < 3) { bd = dd; best = it; } }
+  const best = actionTarget();
   if (best) { best.run(); return; }
   creature.tickle(); Sound.giggle(); burst(P.x, P.y + 2, P.z, ['#ff8fc8', '#ffd84a', '#ff6fae'], 10, 2);
+}
+// The prompt and PAW share exactly the same target selection.
+function actionTarget() {
+ const P=player; let best=null, distance=world.comfort?.relaxed?4.4:3.2;
+ if(P.ride||P.stair)return null;
+ for(const it of G.interact){if(it.layer!==P.layer||(it.need&&!it.need()))continue;const d=Math.abs(it.x-P.x);if(d<distance&&Math.abs((it.y||0)-P.y)<3){distance=d;best=it;}}
+ return best;
+}
+let pawPrompt='';
+function updateActionPrompt(){
+ const d=nearDoor(),it=G.actionTarget,ride=!!player.ride;
+ const icon=ride?'⏏️':d?'🚪':it?.icon||(it?.disc?.startsWith('corner_')?'📖':it?.disc?.includes('pet')?'💖':it?.disc==='paint'?'🎨':'🐾');
+ const label=ride?'Hop off':d?'Enter or use doorway':it?.action||it?.label||(it?.disc?.startsWith('corner_')?'Play a learning game':'Play with the nearby toy');
+ if(pawPrompt!==label+icon){pawPrompt=label+icon;$('pawBtn').setAttribute('aria-label',label);$('pawLabel').textContent=icon;}
+ G.actionTarget=it;
 }
 // tapping / painting in the world
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
@@ -621,7 +699,7 @@ let painting = null;
 function pointerRay(e) { const r = canvas.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ndc, camera); }
 function nearPaint() { const P = player; return P.layer === '' && P.y > -.5 && P.y < 3 && P.x > G.paint.x1 && P.x < G.paint.x2 && !P.ride; }
 canvas.addEventListener('pointerdown', e => {
-  if (!started) return; Sound.unlocked = true; pointerRay(e);
+  if (!started || G.activityOpen) return; Sound.unlocked = true; pointerRay(e);
   if (nearPaint()) { const h = ray.intersectObject(G.paint.mesh)[0]; if (h && !ray.intersectObjects(DOORS.map(d => d.sprite).filter(s => s.visible)).length) { painting = { id: e.pointerId, last: h.uv.clone() }; paintAt(h.uv, h.uv); canvas.setPointerCapture(e.pointerId); discover('paint', 'Paint with your finger! Pick a colour below.'); return; } }
   if (false && !stick && e.clientX < innerWidth * .5) { stick = { id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now(), active: false, dx: 0, dy: 0, cx: e.clientX, cy: e.clientY }; try { canvas.setPointerCapture(e.pointerId); } catch (_) { } return; }
   worldTap(e);
@@ -633,7 +711,7 @@ function bounceObj(o) { if (!o || !o.scale || bounces.some(b => b.o === o) || (G
 function tapAt(cx, cy, ring) {
   pointerRay({ clientX: cx, clientY: cy });
   const targets = [creature.root, ...G.taps, ...bubbles.map(b => b.m), ...DOORS.filter(d => d.sprite.visible).map(d => d.sprite)];
-  const hits = ray.intersectObjects(targets, true);
+  const hits = ray.intersectObjects(targets, true).filter(h=>isVisibleTarget(h.object,scene));
   // tapping your creature always tickles it, even when it stands behind balls or bubbles
   if (!ring && hits.some(h => h.object.userData.creature) && !hits.some(h => h.object.isSprite)) { creature.tickle(); Sound.giggle(); burst(player.x, player.y + 1.8, player.z, ['#ff8fc8', '#ffd84a', '#ff6fae'], 10, 2); discover('tickle', 'Hee hee! That tickles!'); return true; }
   for (const h of hits) {
@@ -703,7 +781,7 @@ $('sparkleBtn').addEventListener('pointerdown', e => { e.preventDefault(); world
 
 // ---------------- physics ----------------
 const GRAV = 24;
-function bounds() { const P = player; return P.layer === 'in' ? [IN.ox + .8, IN.ox + IN.w - .8] : P.layer === 'castle' ? [G.castleIn.ox + .8, G.castleIn.ox + G.castleIn.w - .8] : P.y < UG.ceil - .1 ? [UG.x0 + .6, UG.x1 - .6] : [EXP.xMin, EXP.x1]; }
+function bounds() { const P = player; return P.layer === 'space' && G.spaceBounds ? G.spaceBounds : P.layer === 'sea' ? [SEA.ox + .6, SEA.ox + SEA.w - .6] : P.layer === 'in' ? [IN.ox + .8, IN.ox + IN.w - .8] : P.layer === 'castle' ? [G.castleIn.ox + .8, G.castleIn.ox + G.castleIn.w - .8] : P.y < UG.ceil - .1 ? [UG.x0 + .6, UG.x1 - .6] : [EXP.xMin, EXP.x1]; }
 function updatePlayer(dt) {
   const P = player;
   if (P.stair) { updateStairs(dt); P.z += (IN.stair.z - P.z) * Math.min(1, dt * 8); return; }
@@ -715,14 +793,14 @@ function updatePlayer(dt) {
   }
   if (h) P.facing = h;
   // swimming in the deep part of the ball pit
-  const swim = P.layer === '' && inShaftX(P.x) && P.y < .45 && P.y > UG.swimBottom;
-  if (swim && !P.swim && P.vy <= 0) P.vy = -3.2; // plunge in with a splash
-  if (swim && !P.swim) { Sound.tone(300, .25, 'sine', .05, .6); burst(P.x, Math.max(P.y, 0) + .6, 0, ['#65dcec', '#ffda68', '#b587ff', '#ff67ab'], 12, 2); discover('dive', 'The deep part! Swim down through the balls to a secret place. JUMP swims up!'); }
-  P.swim = swim; if (swim) P.fromShaft = true;
+  const swim = (P.layer === '' && inShaftX(P.x) && P.y < .45 && P.y > UG.swimBottom) || P.layer === 'sea'; // (build 43: everywhere in the deep pool and the underwater world)
+  if (swim && !P.swim && P.vy <= 0 && P.layer === '') P.vy = -3.2; // plunge in with a splash
+  if (swim && !P.swim && P.layer === '') { Sound.tone(300, .25, 'sine', .05, .6); burst(P.x, Math.max(P.y, 0) + .6, 0, ['#65dcec', '#ffda68', '#b587ff', '#ff67ab'], 12, 2); discover('dive', 'The deep part! Swim down through the balls to a secret place. JUMP swims up!'); }
+  P.swim = swim; if (swim && P.layer === '') P.fromShaft = true;
   const crawl = P.layer === '' && P.y < UG.ceil - .1 && P.x > UG.tunnel[0] - .3 && P.x < UG.tunnel[1] + .3 && P.y < UG.tunnelCeil - .5;
   if (crawl && !P.crawl) discover('crawl', 'A tiny tunnel! Crawl through it.');
   P.crawl = crawl;
-  const top = (swim ? 2.2 : crawl ? 3.4 : 5.8) * keys.scale, accel = P.grounded ? 62 : 30; /* (build 25: snappier start and stop) */ if (P.driftT > 0 && !h && !P.grounded) { P.driftT -= dt; P.vx = P.drift; } else { P.driftT = 0; P.vx += clamp(h * top - P.vx, -accel * dt, accel * dt); }
+  const top = (swim ? (P.layer === 'sea' ? 3.6 : 2.2) : crawl ? 3.4 : 5.8) * keys.scale, accel = P.grounded ? 62 : 30; /* (build 25: snappier start and stop) */ if (P.driftT > 0 && !h && !P.grounded) { P.driftT -= dt; P.vx = P.drift; } else { P.driftT = 0; P.vx += clamp(h * top - P.vx, -accel * dt, accel * dt); }
   const [x1, x2] = bounds(); const ox = P.x; P.x = clamp(P.x + P.vx * dt, x1, x2); if (P.x <= x1 || P.x >= x2) P.vx = 0;
   // solid things: you can't walk through them. Low ones (up to 1.25 high) you hop up onto by yourself.
   for (const s of G.solids) {
@@ -738,7 +816,7 @@ function updatePlayer(dt) {
   }
   P.z += (P.groundZ - P.z) * Math.min(1, dt * 6);
   const oldY = P.y, wasG = P.grounded;
-  if (swim) { P.vy -= 5 * dt; if (P.vy < -.95) P.vy += (-.95 - P.vy) * Math.min(1, dt * 2); } else P.vy -= GRAV * dt; // in the deep ball pit you sink slowly
+  if (swim) { P.vy -= 5 * dt; if (P.vy < -.95) P.vy += (-.95 - P.vy) * Math.min(1, dt * 2); } else { P.vy -= GRAV * (P.layer === 'space' ? (G.spaceG || 1) : 1) * dt; /* (build 45: the real gravity of the Moon, the planets and Pluto, relative to Earth) */ if (P.floaty) { if (P.grounded || P.ride) P.floaty = false; else if (P.vy < -3.5) P.vy = -3.5; } } // in the deep ball pit you sink slowly; (build 43) after hopping off the whale you float down
   P.y += P.vy * dt; P.grounded = false;
   // land on the HIGHEST surface you reach (so a bouncy puff on top of a cloud wins over the cloud)
   let land = null, landStep = false;
@@ -760,7 +838,7 @@ function updatePlayer(dt) {
     }
   }
   // the floor: normally y 0; under the floor (or down the deep shaft) it is the underground floor
-  const gy = P.layer !== '' ? 0 : (P.y > UG.ceil + .05 && !inShaftX(P.x)) ? 0 : UG.floor;
+  const gy = P.layer === 'sea' ? SEA.floor : P.layer !== '' ? 0 : (P.y > UG.ceil + .05 && !inShaftX(P.x)) ? 0 : UG.floor;
   if (P.y <= gy) { if (!P.grounded && P.vy < -6) Sound.land(); P.y = gy; P.vy = 0; P.grounded = true; P.groundZ = 0; if (gy < 0) discover('underground', 'A secret underground world! Explore the caves.'); }
   if (P.layer === '' && P.y < UG.ceil - .05) { // underground ceilings (low in the crawl tunnel, open under the shaft)
     const tun = P.x > UG.tunnel[0] && P.x < UG.tunnel[1], c = tun ? UG.tunnelCeil : inShaftX(P.x) ? null : UG.ceil, Hh = tun ? .9 : 1.5;
@@ -780,11 +858,12 @@ function updatePlayer(dt) {
 // ---------------- camera ----------------
 const camT = { x: 5, y: 1.6, look: 0 };
 function viewHalfW(dist) { return Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * dist * camera.aspect; }
-const CAM_DIST = 7.6; // build 16: a little closer, to show the characters
+const CAM_DIST = 9.0; // (build 43: zoomed out from 7.6 at the family's request, so whole activities fit on screen)
 function camTargetX() {
   const P = player, hw = viewHalfW(CAM_DIST) * .92;
   const x = P.x + camT.look;
-  return P.layer === 'in' ? clamp(x, IN.ox + hw, IN.ox + IN.w - hw) : P.layer === 'castle' ? clamp(x, G.castleIn.ox + Math.min(hw, G.castleIn.w / 2), G.castleIn.ox + G.castleIn.w - Math.min(hw, G.castleIn.w / 2)) : clamp(x, EXP.xMin - 4 + hw, EXP.x1 + 4 - hw);
+  if (P.layer === 'space' && G.spaceBounds) { const [a, b] = G.spaceBounds; return b - a < 2 * hw ? (a + b) / 2 : clamp(x, a + hw, b - hw); }
+  return P.layer === 'sea' ? clamp(x, SEA.ox + Math.min(hw, SEA.w / 2), SEA.ox + SEA.w - Math.min(hw, SEA.w / 2)) : P.layer === 'in' ? clamp(x, IN.ox + hw, IN.ox + IN.w - hw) : P.layer === 'castle' ? clamp(x, G.castleIn.ox + Math.min(hw, G.castleIn.w / 2), G.castleIn.ox + G.castleIn.w - Math.min(hw, G.castleIn.w / 2)) : clamp(x, EXP.xMin - 4 + hw, EXP.x1 + 4 - hw);
 }
 function snapCamera() { camT.look = player.ride ? 0 : player.facing * 1.8; camT.x = camTargetX(); camT.y = player.y; if (G.life && G.life.wake) G.life.wake(camT.x); }
 // build 17: frame-rate-independent smoothing (the same camera feel at 30, 60 or 120 frames a second)
@@ -793,13 +872,14 @@ function updateCamera(dt) {
   const P = player;
   camT.look += ((P.ride ? (P.ride.type === 'train' ? P.facing * 2.6 : 0) : P.facing * 1.8) - camT.look) * ease(dt, 3);
   camT.x += (camTargetX() - camT.x) * ease(dt, 8); // (build 25: the camera keeps up more tightly, so the controls don't feel delayed)
-  camT.y += (P.y - camT.y) * ease(dt, (P.grounded ? 4 : 2));
+  camT.y += (P.y + (G.camLift || 0) - camT.y) * ease(dt, G.camLift ? 6 : (P.grounded ? 4 : 2)); camT.rk = (camT.rk ?? 0) + ((P.ride && P.ride.type === 'rocket' ? 1 : 0) - (camT.rk ?? 0)) * ease(dt, 2); // (build 48: the camera rides up with the rocket, a little further back)
   const y = camT.y;
   // build 16: near the castle the camera steps back and looks up, so you can see the whole castle
   // (also a little at the Marble Machine, so its top ramps stay clear of the buttons)
-  const castleK = P.layer === '' && !P.ride ? Math.max(Math.max(0, 1 - Math.abs(P.x - KINGDOM.castle) / 9), Math.max(0, 1 - Math.abs(P.x - 332) / 7) * .45) : 0; camT.cz = (camT.cz ?? 0) + (castleK - (camT.cz ?? 0)) * ease(dt, 1.5);
+  const castleK = P.layer === '' && !P.ride ? Math.max(Math.max(0, 1 - Math.abs(P.x - KINGDOM.castle) / 9), Math.max(0, 1 - Math.abs(P.x - 332) / 7) * .45, Math.max(0, 1 - Math.abs(P.x - (BUILD.x0 + BUILD.cols * BUILD.cw / 2)) / 8) * .7) : 0; /* (build 43: and at the Block Builder, so the whole wall shows) */ camT.cz = (camT.cz ?? 0) + (castleK - (camT.cz ?? 0)) * ease(dt, 1.5);
   const kz = P.ride && (P.ride.type === 'kart' || P.ride.type === 'train' || P.ride.type === 'whale') ? P.z : 0; camT.z = (camT.z ?? 0) + (kz - (camT.z ?? 0)) * ease(dt, 3);
-  camera.position.set(camT.x, y + 2.15 + Math.max(0, -camT.z) * .25 + camT.cz * 1.2, CAM_DIST + camT.z + camT.cz * 3.2); camera.lookAt(camT.x, y + 1.15 + camT.cz * 2.4, camT.z - camT.cz * 2);
+  camT.wz = (camT.wz ?? 0) + ((P.ride && P.ride.type === 'whale' ? 1 : 0) - (camT.wz ?? 0)) * ease(dt, 1.2); // (build 43: flying the whale: the camera pulls back and looks down at the world below)
+  camera.position.set(camT.x, y + 2.15 + Math.max(0, -camT.z) * .25 + camT.cz * 1.2 + camT.wz * 3 + camT.rk * 1.6, CAM_DIST + camT.z + camT.cz * 3.2 + camT.wz * 10 + camT.rk * 5); camera.lookAt(camT.x, y + 1.15 + camT.cz * 2.4 - camT.wz * 3.5 + camT.rk * 2, camT.z - camT.cz * 2 - camT.rk * 2);
   if (G.shake > 0) { G.shake = Math.max(0, G.shake - dt); camera.position.x += (Math.random() - .5) * G.shake * .5; camera.position.y += (Math.random() - .5) * G.shake * .5; } // a little stomp shake
   if (G.camOverride) { const o = G.camOverride; camera.position.set(...o.pos); camera.lookAt(...o.look); } // (close-up camera for checking models)
   sky.position.x = camT.x; // the sky dome travels with you (the world is wider than the dome now)
@@ -808,6 +888,13 @@ function updateCamera(dt) {
 
 // ---------------- world animation ----------------
 function updateWorldAnim(dt, t) {
+  space.update(dt, t); // (build 45)
+  sea.update(dt, t); // (build 43)
+  if (G.skyUpdate && Math.abs(camT.x - 30) < 60) G.skyUpdate(dt, t); // (build 43: the new Sky Kingdom things, only when they're near)
+  // (build 43) the learning play spots: the toy turns and bobs, the ring glows, sparkles rise when you come near
+  if (G.learnSigns) for (const g of G.learnSigns) { const d = Math.abs(g.position.x - camT.x); if (d > 30) continue; const u = g.userData;
+    u.toy.rotation.y += dt * .9; u.toy.position.y = 1.35 + Math.sin(t * 2 + g.position.x) * .1; u.star.position.set(Math.cos(t * 1.5) * .6, 1.6 + Math.sin(t * 3) * .15, Math.sin(t * 1.5) * .6); u.ring.scale.setScalar(1 + Math.sin(t * 3) * .05);
+    if (d < 8 && Math.random() < dt * 2.5) burst(g.position.x + (Math.random() - .5) * 1.2, .25, g.position.z + (Math.random() - .5) * .8, ['#fff3a6', '#ffd1ec', '#ffffff'], 2, 1); }
   const C = G.carousel, riding = player.ride && player.ride.type === 'carousel';
   C.speed += ((riding ? 1.1 : .25) - C.speed) * Math.min(1, dt * .8); C.spin.rotation.y += C.speed * dt;
   C.mounts.forEach((m, i) => { m.ride.position.y = Math.sin(t * 2.2 + i * 1.3) * .35 + .2; });
@@ -825,7 +912,7 @@ function updateWorldAnim(dt, t) {
   for (const k of G.crystals) { if (P0.y < UG.ceil && Math.abs(P0.x - k.x) < .45 && k.cd <= 0 && P0.grounded) G.singCrystal(k); k.cd = Math.max(0, k.cd - dt); k.lit = Math.max(0, k.lit - dt * 1.5); k.m.material.emissiveIntensity = .25 + k.lit * 1.2; k.m.rotation.y += dt * (.3 + k.lit * 6); }
   for (const g of G.gems) { g.spin = Math.max(0, g.spin - dt); g.g.rotation.y += dt * (1 + g.spin * 10); g.g.position.y = g.y + .45 + Math.sin(t * 2 + g.i) * .08 + g.spin * .3; }
   if (!(P0.ride && P0.ride.type === 'lift')) { const target = P0.y < -1 ? UG.floor : 0; G.liftPad.position.y += (target - .07 - G.liftPad.position.y) * Math.min(1, dt * 3); } else G.liftPad.position.y = P0.y - .07;
-  { const W = G.whale; W.spout = Math.max(0, W.spout - dt); if (!(player.ride && player.ride.type === 'whale')) { const k = Math.min(1, dt * 2); W.g.position.y += (W.y + Math.sin(t * .8) * .35 - W.g.position.y) * k; W.g.position.x += (W.x + Math.sin(t * .23) * 2 - W.g.position.x) * k; W.g.rotation.z = Math.sin(t * .8) * .05; W.g.rotation.y *= 1 - k; } W.tail.rotation.y = Math.sin(t * 2.2) * .4;
+  { const W = G.whale; W.spout = Math.max(0, W.spout - dt); if (!(player.ride && player.ride.type === 'whale')) { const k = Math.min(1, dt * 2); if (Math.abs(W.g.position.x - W.x) > 30 && Math.abs(W.g.position.x - camT.x) > 40) W.g.position.set(W.x, W.y, -7.5); W.g.position.z += (-7.5 - W.g.position.z) * Math.min(1, dt * .5); /* (build 43: after a long flight it swims home out of sight, instead of zooming back across the map) */ W.g.position.y += (W.y + Math.sin(t * .8) * .35 - W.g.position.y) * k; W.g.position.x += (W.x + Math.sin(t * .23) * 2 - W.g.position.x) * k; W.g.rotation.z = Math.sin(t * .8) * .05; W.g.rotation.y *= 1 - k; } W.tail.rotation.y = Math.sin(t * 2.2) * .4;
     if (W.spout > 0 && Math.random() < dt * 30) burst(W.g.position.x + 1.4, W.g.position.y + 1.8, W.g.position.z, ['#bfe8ff', '#ffffff', '#9fe6ff'], 3, 2.5); }
   G.skyPuffs.forEach(m => { m.position.y = SKY.y + .25 + Math.sin(t * 2 + m.position.x) * .04; });
   G.grassTime.value = t; windTime.value = t;
@@ -836,8 +923,8 @@ function updateWorldAnim(dt, t) {
   updateSlices(); // (every frame: cheap, and a jump into the house shows its room at once)
   expansion.update(dt, t, player.layer === '' ? camT.x : -999); // (build 29: stream the new neighbourhoods)
   if (G.updateTrainStrip) G.updateTrainStrip();
-  if ((lodTick = (lodTick + 1) % 8) === 0) { for (const it of LOD) { const d = Math.abs(it.x - camT.x); it.o.visible = d < it.r; if (MOBILE && it.parts) { const far = d > 16; if (it.far !== far) { it.far = far; for (const q of it.parts) q.m.geometry = far ? q.lo : q.hi; } } } // (build 28: phones show trees and bushes further than 16 m low-detail)
-    for (const f of FUR) { f.mesh.getWorldPosition(V); const near = V.distanceTo(camera.position) < 14; if (f.shells[0] && f.shells[0].visible !== near) for (const s of f.shells) s.visible = near; } }
+  if ((lodTick = (lodTick + 1) % 8) === 0) { for (const it of LOD) { const d = Math.abs(it.x - camT.x); it.o.visible = d < it.r; if (MOBILE && it.parts) { const far = d > (gfx.level >= 4 ? 8 : 16); /* (build 44: at the lightest graphics levels trees switch to their simple shape sooner) */ if (it.far !== far) { it.far = far; for (const q of it.parts) q.m.geometry = far ? q.lo : q.hi; } } } // (build 28: phones show trees and bushes further than 16 m low-detail)
+    for (const f of FUR) { f.mesh.getWorldPosition(V); const near = V.distanceTo(camera.position) < (gfx.level >= 4 ? 0 : gfx.level >= 2 ? 10 : 14); /* (build 44: no fur layers at the lightest levels) */ if (f.shells[0] && f.shells[0].visible !== near) for (const s of f.shells) s.visible = near; } }
   G.diveRing.rotation.z = t * .8; G.diveRing.position.y = 1.05 + Math.sin(t * 3) * .08;
   bigStar.visible = !world.secret; bigStar.rotation.y = t * 1.6; bigStar.position.y = G.secretStar[1] + Math.sin(t * 2) * .12;
   // door/stair bubbles
@@ -850,7 +937,7 @@ function saveSoon() { saveTimer = 1.2; }
 function save() {
   if (G.perfTest || G.erasing) return; // (build 26: the performance test never saves)
   try {
-    const d = { v: 1, creature: player.creature, x: player.layer === 'in' ? IN.door : player.layer === 'castle' ? KINGDOM.castle : Math.round(player.x * 10) / 10, disc: [...world.disc], bits: [...world.bits], secret: world.secret, fluffs: fluffs.map(f => f.state), sound: Sound.on, learn: world.learn || {}, learnTier: world.learnTier || 1, exp: world.exp || {}, pet: (world.pets || [])[0] || null, pets: world.pets || [], buddies: world.buddies || {}, petStay: world.petStay || [], dinoFollow: world.dinoFollow || [false, false, false], petDraft: world.petDraft || null, balloons: world.balloons || [], build: world.build, colorings: world.colorings, styles: world.styles || {}, sparkle: !!world.sparkle, kart: world.kart, crown: !!world.crown, wand: !!world.wand, dinoEggs: world.dinoEggs };
+    const d = { nursery: world.nursery, adventures: world.adventures, comfort: world.comfort, v: 1, creature: player.creature, x: player.layer === 'in' ? IN.door : player.layer === 'castle' ? KINGDOM.castle : Math.round(player.x * 10) / 10, disc: [...world.disc], bits: [...world.bits], secret: world.secret, fluffs: fluffs.map(f => f.state), sound: Sound.on, learn: world.learn || {}, learnTier: world.learnTier || 1, exp: world.exp || {}, pet: (world.pets || [])[0] || null, pets: world.pets || [], buddies: world.buddies || {}, petStay: world.petStay || [], dinoFollow: world.dinoFollow || [false, false, false], petDraft: world.petDraft || null, balloons: world.balloons || [], build: world.build, colorings: world.colorings, styles: world.styles || {}, sparkle: !!world.sparkle, kart: world.kart, crown: !!world.crown, wand: !!world.wand, dinoEggs: world.dinoEggs };
     if (world.painted) d.paint = G.paint.canvas.toDataURL('image/jpeg', .82);
     else { const old = load(); if (old && old.paint) d.paint = old.paint; }
     localStorage.setItem(SAVE_KEY, JSON.stringify(d));
@@ -859,9 +946,10 @@ function save() {
 function load() { try { const d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return d && d.v === 1 ? d : null; } catch (e) { return null; } }
 function restore(d) {
   if (!d) return;
+  world.nursery = d.nursery; world.adventures = d.adventures; world.comfort = d.comfort;
   if (CREATURES[d.creature]) player.creature = d.creature;
   if (d.learn && typeof d.learn === 'object' && !Array.isArray(d.learn)) { world.learn = {}; for (const [k, v] of Object.entries(d.learn)) if (v && Number.isFinite(v.level) && Number.isFinite(v.stars)) { const o = world.learn[k] = { level: Math.max(1, Math.min(9, v.level | 0)), stars: Math.max(0, v.stars | 0) }; for (const f of ['s1', 's2', 's3', 'd1', 'd2', 'd3']) if (Number.isFinite(v[f])) o[f] = Math.max(0, Math.min(9, v[f] | 0)); } } // (build 25: learning progress; build 27: per-level ramps)
-  if (d.exp && typeof d.exp === 'object') { const e = d.exp, num = v => Number.isFinite(v) ? Math.max(0, Math.min(1e6, v | 0)) : 0; world.exp = Object.assign(world.exp || {}, { gems: Array.isArray(e.gems) ? e.gems.filter(g => /^g\d{1,2}$/.test(g)).slice(0, 40) : [], stickers: Array.isArray(e.stickers) ? e.stickers.filter(q => Array.isArray(q) && q.length === 3 && q.every(Number.isFinite)).slice(-80) : [], chests: num(e.chests), balloons: num(e.balloons), shells: Array.isArray(e.shells) ? e.shells.filter(v => /^s\d$/.test(v)).slice(0, 12) : [], pals: e.pals && typeof e.pals === 'object' ? Object.fromEntries(['crab', 'fox', 'penguin', 'robot', 'frog', 'parrot'].filter(k => e.pals[k]).map(k => [k, { follow: !!e.pals[k].follow }])) : {} }); } // (build 29; build 30: fill in the SAME object the new areas already hold, never a new one)
+  if (d.exp && typeof d.exp === 'object') { const e = d.exp, num = v => Number.isFinite(v) ? Math.max(0, Math.min(1e6, v | 0)) : 0; world.exp = Object.assign(world.exp || {}, { gems: Array.isArray(e.gems) ? e.gems.filter(g => /^g\d{1,2}$/.test(g)).slice(0, 40) : [], stickers: Array.isArray(e.stickers) ? e.stickers.filter(q => Array.isArray(q) && q.length === 3 && q.every(Number.isFinite)).slice(-80) : [], chests: num(e.chests), balloons: num(e.balloons), shells: Array.isArray(e.shells) ? e.shells.filter(v => /^s\d$/.test(v)).slice(0, 12) : [], pals: e.pals && typeof e.pals === 'object' ? Object.fromEntries(['crab', 'fox', 'penguin', 'robot', 'frog', 'parrot', 'pig', 'seal', 'goat'].filter(k => e.pals[k]).map(k => [k, { follow: !!e.pals[k].follow }])) : {} }); } // (build 29; build 30: fill in the SAME object the new areas already hold, never a new one)
   world.learnTier = [1, 2, 3].includes(d.learnTier) ? d.learnTier : 1; // (build 27: learning level, chosen by a grown-up; Super Easy by default)
   const okRec = r => r && typeof r === 'object' && [['col', PET_COLS.length], ['ears', EARS.length], ['tail', TAILS.length], ['pat', PATS.length]].every(([k, n]) => Number.isInteger(r[k]) && r[k] >= 0 && r[k] < n);
   const cleanRec = r => ({ col: r.col, ears: r.ears, tail: r.tail, pat: r.pat });
@@ -882,7 +970,7 @@ function restore(d) {
   if (d.crown === true) world.crown = true;
   if (d.wand === true) world.wand = true; // (build 33)
   if (Array.isArray(d.dinoEggs) && d.dinoEggs.length === 3 && d.dinoEggs.every(v => typeof v === 'boolean')) world.dinoEggs = d.dinoEggs.slice();
-  if (typeof d.x === 'number' && isFinite(d.x)) player.x = d.x > EXP.x0 + 6 ? clamp(d.x, EXP.x0 + 6, EXP.x1 - 2) : d.x < -6 ? clamp(d.x, EXP.xMin + 2, -6) : clamp(d.x, .5, 301); // (build 29: you can also wake up in the new neighbourhoods)
+  if (typeof d.x === 'number' && isFinite(d.x)) player.x = d.x > EXP.x1 + 20 ? 190 /* (saved inside a room far away, e.g. the house or the underwater world: wake up at home) */ : d.x > EXP.x0 + 6 ? clamp(d.x, EXP.x0 + 6, 902) : d.x < -6 ? clamp(d.x, -662, -6) : clamp(d.x, .5, 301); // (build 43: never inside the new sky stairs) // (build 29: you can also wake up in the new neighbourhoods)
   (Array.isArray(d.disc) ? d.disc : []).forEach(x => typeof x === 'string' && world.disc.add(x));
   (Array.isArray(d.bits) ? d.bits : []).forEach(i => Number.isInteger(i) && i >= 0 && i < G.bitSpots.length && world.bits.add(i));
   world.secret = d.secret === true;
@@ -893,32 +981,91 @@ function restore(d) {
 function setSound(on) { Sound.on = on; $('soundBtn').classList.toggle('muted', !on); }
 $('soundBtn').addEventListener('pointerdown', e => { e.preventDefault(); Sound.unlocked = true; setSound(!Sound.on); if (Sound.on) Sound.click(); save(); });
 
-// ---------------- character selection ----------------
+// ---------------- creature portraits (rendered once, in 3D) ----------------
+function renderPortraits() {
+  // drawn with the main renderer into a corner of the canvas, then copied (no second WebGL context)
+  const s = new THREE.Scene(); s.environment = scene.environment; s.environmentIntensity = .7; s.background = new THREE.Color('#fff6ee');
+  s.add(new THREE.HemisphereLight('#ffffff', '#c9a6ff', 1.4)); const l = new THREE.DirectionalLight('#fff', 2); l.position.set(2, 4, 5); s.add(l);
+  const cam = new THREE.PerspectiveCamera(30, 1, .1, 50); cam.position.set(0, 1.3, 4.6); cam.lookAt(0, .95, 0);
+  const pr = renderer.getPixelRatio(), css = 128 / pr, px = Math.round(css * pr), out = {};
+  const c2 = document.createElement('canvas'); c2.width = c2.height = 128; const g2 = c2.getContext('2d');
+  renderer.setScissorTest(true); renderer.setViewport(0, 0, css, css); renderer.setScissor(0, 0, css, css);
+  const was = renderer.shadowMap.enabled; renderer.shadowMap.enabled = false;
+  for (const k of Object.keys(CREATURES)) {
+    const c = makeCreature(k); s.add(c.root); c.update(.016, { grounded: true, facing: 1, vx: 0, vy: 0 }); c.root.rotation.y = .35;
+    renderer.render(s, cam); g2.clearRect(0, 0, 128, 128); g2.drawImage(canvas, 0, canvas.height - px, px, px, 0, 0, 128, 128); out[k] = c2.toDataURL(); s.remove(c.root);
+  }
+  renderer.shadowMap.enabled = was; renderer.setScissorTest(false); renderer.setViewport(0, 0, canvas.clientWidth || innerWidth, canvas.clientHeight || innerHeight);
+  return out;
+}
 document.querySelectorAll('.creatureChoice').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); Sound.unlocked = true; setCreature(b.dataset.c); Sound.giggle(); save(); }));
 document.querySelectorAll('.introPick').forEach(b => b.addEventListener('click', () => { document.querySelectorAll('.introPick').forEach(x => x.classList.toggle('picked', x === b)); setCreature(b.dataset.c); }));
 
 // ---------------- resize + adaptive quality ----------------
-let quality = TEST || !GRAPHICS.resolution ? .4 : MOBILE ? .75 : 1, slow = 0, ema = 1 / 60;
-if (TEST || !GRAPHICS.shadows) renderer.shadowMap.enabled = false;
+let quality = TEST ? .4 : MOBILE ? .75 : 1, slow = 0, ema = 1 / 60;
+if (TEST) renderer.shadowMap.enabled = false;
 // soft "ambient occlusion" shadows (post.js); off in the light test mode and with ?nopost
-const post = makePost(renderer, scene, camera, {
-  mobile: MOBILE, disabled: TEST || !GRAPHICS.effects || /[?&]nopost/.test(location.search),
-});
+const post = makePost(renderer, scene, camera, { mobile: MOBILE }); post.enabled = !TEST && !/[?&]nopost/.test(location.search);
 // (build 34b) the picture is sized from the canvas's REAL size on screen. On iPhone (especially the Home Screen app),
 // innerWidth/innerHeight can still hold the old, upright size when the phone turns, which drew a tall picture and
 // stretched it sideways ("squished"). A cheap check every frame also catches any size change that sent no event.
 let sizeW = 0, sizeH = 0;
 function screenSize() { const r = canvas.getBoundingClientRect(); return [Math.round(r.width) || innerWidth, Math.round(r.height) || innerHeight]; }
-function resize() {
-  const [w, h] = screenSize(), dpr = Math.min(devicePixelRatio || 1, 2) * quality; sizeW = w; sizeH = h;
-  renderer.setPixelRatio(Math.max(.75, dpr)); renderer.setSize(w, h, false);
-  camera.aspect = w / h; camera.updateProjectionMatrix();
-  post.setSize(w, h, renderer.getPixelRatio());
+// (build 36) ONE GAME FOR EVERY SCREEN. What kind of device this is (for sensible defaults only; the measured frame
+// times still decide the quality): iPadOS reports itself as a Mac, so a Mac with a touch screen is an iPad.
+const DEV = (() => { const ua = navigator.userAgent, ipad = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1), ios = /iPhone|iPod/.test(ua) || ipad, android = /Android/.test(ua);
+  const short = Math.min(screen.width || innerWidth, screen.height || innerHeight), tablet = ipad || (android && !/Mobile/.test(ua)) || (MOBILE && short >= 600);
+  const standalone = !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches));
+  return { ios, android, ipad, tablet, phone: MOBILE && !tablet, standalone, kind: tablet ? 'tablet' : MOBILE ? 'phone' : 'desktop' }; })();
+G.DEV = DEV;
+// FULL SCREEN where the browser allows it (Android Chrome, iPad Safari, desktop). An iPhone's Safari does not allow it
+// for a game (only for videos): there the Home Screen app is the full-screen way to play. Never needed when already
+// running as an installed app. Turning the screen sideways is locked only where the browser allows that (in full screen).
+function fsAvailable() { const d = document; return !DEV.standalone && !!(d.fullscreenEnabled || d.webkitFullscreenEnabled) && !(d.fullscreenElement || d.webkitFullscreenElement); }
+function goFullscreen() {
+  const el = document.documentElement, rq = el.requestFullscreen || el.webkitRequestFullscreen; if (!rq) return;
+  const lock = () => { try { const o = screen.orientation; if (o && o.lock) o.lock('landscape').catch(() => { }); } catch (e) { } };
+  try { const p = rq.call(el, { navigationUI: 'hide' }); if (p && p.then) p.then(lock, () => { }); else lock(); } catch (e) { }
 }
-function checkSize() { const w = canvas.clientWidth, h = canvas.clientHeight; if (w && h && (w !== sizeW || h !== sizeH)) resize(); }
+G.goFullscreen = goFullscreen;
+// A PIXEL BUDGET: high-density screens (an iPad is about 2700×2000 real pixels) would make the graphics chip draw several
+// times more pixels than a phone for a picture nobody can tell apart at arm's length. The picture is drawn at most at this
+// many pixels and scaled up smoothly; phones are already under it, so they look exactly as before.
+const PIX_BUDGET = TEST ? 1e9 : DEV.phone ? 1.0e6 : DEV.tablet ? 1.6e6 : 3.0e6;
+let budgetScale = 1; // (the Performance mode lowers it)
+// The 3D CAMERA follows the screen's shape: the view was tuned for a wide phone (about 2:1). On a squarer screen
+// (an iPad is 4:3) a fixed vertical angle would show much less of the world to the sides, so it would look zoomed in.
+// The angle opens up (part of the way) to keep the sides in view, so the framing feels the same on every device.
+const FOV0 = 38, ASPECT0 = 1.95;
+function fovFor(a) { return a >= ASPECT0 ? FOV0 : THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(FOV0 / 2)) * Math.pow(ASPECT0 / Math.max(.5, a), .75))); }
+// The buttons scale with the screen: bigger on a tablet (up to 1.35×), but NEVER smaller than normal on a phone, so every
+// button stays at least 44 px for small fingers. (A narrow phone wraps the top buttons onto two rows instead: style.css.)
+function uiScale(w, h) { return Math.max(1, Math.min(1.35, Math.min(h / 390, w / 720))); }
+function resize() {
+  if(G.playroom?.active())return;
+  const [w, h] = screenSize(); sizeW = w; sizeH = h;
+  const want = Math.min(devicePixelRatio || 1, 2) * quality, cap = Math.sqrt(PIX_BUDGET * budgetScale / Math.max(1, w * h));
+  renderer.setPixelRatio(Math.max(.6, Math.min(want, cap))); renderer.setSize(w, h, false);
+  camera.aspect = w / h; camera.fov = fovFor(camera.aspect); camera.updateProjectionMatrix();
+  post.setSize(w, h, renderer.getPixelRatio());
+  document.documentElement.style.setProperty('--ui', uiScale(w, h).toFixed(3));
+}
+// (build 36) the browser tells us when the canvas changes size (ResizeObserver: no cost per frame); as a safety net the
+// size is also compared twice a second (reading it every frame could force the page layout to be redone each frame).
+let sizeCheckAt = 0;
+function checkSize(now) { if (now - sizeCheckAt < 500) return; sizeCheckAt = now; const w = canvas.clientWidth, h = canvas.clientHeight; if (w && h && (w !== sizeW || h !== sizeH)) resize(); }
+if (window.ResizeObserver) try { new ResizeObserver(() => { const w = canvas.clientWidth, h = canvas.clientHeight; if (w && h && (w !== sizeW || h !== sizeH)) resize(); }).observe(canvas); } catch (e) { }
 addEventListener('resize', resize); addEventListener('orientationchange', () => { resize(); setTimeout(resize, 300); setTimeout(resize, 1000); });
 if (window.visualViewport) visualViewport.addEventListener('resize', resize);
 resize();
+// (build 23) the title pictures never change: they are drawn once, saved on the device, and shown instantly on
+// every later start. On the very first start they are drawn just after the game becomes playable.
+const PORTRAIT_KEY = 'ddw3-portraits-b23';
+let portraits = {};
+try { portraits = JSON.parse(localStorage.getItem(PORTRAIT_KEY) || '{}'); } catch (e) { portraits = {}; }
+const applyPortraits = () => document.querySelectorAll('[data-c]').forEach(el => { const img = el.querySelector('img'); if (img && portraits[el.dataset.c]) img.src = portraits[el.dataset.c]; });
+const needPortraits = Object.keys(CREATURES).some(k => !portraits[k]);
+if (!needPortraits) applyPortraits();
 // (build 26) AUTOMATIC QUALITY, a ladder of steps. None of them recompiles shaders (no freeze when it changes):
 //   0 full  ·  1 lighter shadows (1024 px, drawn every 3rd frame)  ·  2 lite effects (no 4x AA buffer, no glow)
 //   3 resolution -12%  ·  4 resolution -24%  ·  5 smallest shadows (512 px, every 4th frame), resolution -30%
@@ -932,16 +1079,40 @@ function applyGfx(L, why) {
   L = Math.max(0, Math.min(5, L)); const prev = gfx.level; gfx.level = L; gfx.since = 0; gfx.slow = gfx.fast = 0;
   shadowEvery = L >= 5 ? 4 : L >= 1 ? 3 : 2;
   const sm = L >= 5 ? 512 : L >= 1 ? Math.min(1024, SM0) : SM0; if (sun.shadow.mapSize.x !== sm) { sun.shadow.mapSize.set(sm, sm); sun.shadow.map?.dispose(); sun.shadow.map = null; }
+  // (build 44) the real iPhone report: the park and creature area are limited by the graphics chip (triangles), even at the
+  // lightest level, so the lightest levels also draw less grass (the clumps are in random order: the rest stay evenly spread)
+  for (const im of G.grassMeshes || []) im.count = Math.round(im.userData.n0 * (L >= 5 ? .5 : L >= 4 ? .7 : 1));
   post.lite = L >= 2; quality = QMAX - (L >= 5 ? .3 : L >= 4 ? .24 : L >= 3 ? .12 : 0); resize();
   if (why) { gfx.changes.push(`${prev}→${L} (${why})`); if (gfx.changes.length > 12) gfx.changes.shift(); try { localStorage.setItem(GFX_KEY, JSON.stringify({ level: L })); } catch (e) { } }
 }
-if (!TEST && !SAFE_GRAPHICS && !/[?&]hq/.test(location.search)) { try { const g = JSON.parse(localStorage.getItem(GFX_KEY) || 'null'); if (g && Number.isFinite(g.level)) applyGfx(g.level); else if (MOBILE) applyGfx(1); } catch (e) { } } // (build 28: a phone starts on lighter shadows, so lag never comes first)
+if (!TEST && !/[?&]hq/.test(location.search)) { try { const g = JSON.parse(localStorage.getItem(GFX_KEY) || 'null'); if (g && Number.isFinite(g.level)) applyGfx(g.level); else if (MOBILE) applyGfx(1); } catch (e) { } } // (build 28: a phone starts on lighter shadows, so lag never comes first)
 G.applyGfx = applyGfx; G.resetGfx = () => { applyGfx(MOBILE ? 1 : 0); gfx.changes.push('reset'); gfx.failed = -1; };
+// (build 36) GRAPHICS MODE for grown-ups (⚙️): Auto (the measured frame times choose, as before), or a fixed choice:
+// Quality (best picture), Balanced, Performance (smallest picture and shadows, for older or warm devices).
+const GFX_MODES = { auto: null, quality: 0, balanced: 2, performance: 5 }, MODE_KEY = 'ddw3-gfxmode';
+gfx.mode = 'auto';
+function setGfxMode(m, save = true) {
+  if (!(m in GFX_MODES)) m = 'auto'; gfx.mode = m; budgetScale = m === 'performance' ? .6 : 1;
+  if (m === 'auto') { let L = MOBILE ? 1 : 0; try { const g = JSON.parse(localStorage.getItem(GFX_KEY) || 'null'); if (g && Number.isFinite(g.level)) L = g.level; } catch (e) { } applyGfx(L); }
+  else applyGfx(GFX_MODES[m]);
+  gfx.changes.push('mode ' + m); if (save) try { localStorage.setItem(MODE_KEY, m); } catch (e) { }
+}
+if (!TEST && !/[?&]hq/.test(location.search)) { try { const m = localStorage.getItem(MODE_KEY); if (m && m !== 'auto') setGfxMode(m, false); } catch (e) { } }
+G.setGfxMode = setGfxMode; G.adapt = dt => adapt(dt); // (a test can freeze the real timing, G.adaptFrozen, and feed adapt() recorded frame times)
 function adapt(dt) {
   ema += (dt - ema) * .05; gfx.var += ((dt - ema) * (dt - ema) - gfx.var) * .05; gfx.since += dt;
-  const capped30 = ema > .029 && ema < .037 && Math.sqrt(gfx.var) < .004; // a steady 30 fps cap is not lag
+  if (gfx.mode !== 'auto') return; // (a fixed graphics mode chosen by a grown-up)
+  // (build 39) A 30 fps CAP (iPhone Low Power Mode) is not lag. A steady one is recognised at once; an uneven one (1% lows of
+  // 20-26 fps, seen on the real iPhone) is recognised by TRYING: after stepping down at about 30 fps, if 8 s later the frame
+  // rate hasn't improved, lowering the quality didn't help, so the step is undone and, while the cap lasts, the game stops
+  // lowering the picture at about 30 fps. (On the real iPhone it went 4→5→4 under the cap: a worse picture for nothing.)
+  const near30 = ema > .028 && ema < .038, capped30 = !gfx.notCap && ((near30 && Math.sqrt(gfx.var) < .004) || (gfx.capLock && near30)); // (notCap: the test showed lowering DOES help here)
+  if (gfx.capLock && ema < 1 / 50) gfx.capLock = false; // (the cap is gone: e.g. Low Power Mode was switched off)
+  // The test is decisive: for 6 s the picture drops to the LOWEST level. If even that isn't faster, it is a cap: back to the
+  // level it was, and no more lowering under the cap. If it IS faster, the device really was slow: one level lower than before.
+  if (gfx.probe) { gfx.probe.t += dt; if (gfx.probe.t > 6) { const p = gfx.probe; gfx.probe = null; if (ema > p.ema0 * .85 && ema > .028) { gfx.capLock = true; applyGfx(p.from, '30 fps cap: lower quality didn\'t help'); } else { gfx.notCap = true; applyGfx(Math.min(5, p.from + 1), 'faster when lowered'); } gfx.since = 0; } return; }
   if (ema > 1 / 48 && !capped30) { gfx.fast = 0; gfx.slow += dt;
-    if (gfx.slow > 2.5 && gfx.since > 4 && gfx.level < 5) { if (gfx.since < 60 && gfx.changes.length && gfx.changes[gfx.changes.length - 1].includes('smooth')) { gfx.failed = gfx.level; gfx.failedAt = performance.now(); } applyGfx(gfx.level + 1, Math.round(1 / ema) + ' fps'); } }
+    if (gfx.slow > 2.5 && gfx.since > 4 && gfx.level < 5 && !gfx.probe) { if (gfx.since < 60 && gfx.changes.length && gfx.changes[gfx.changes.length - 1].includes('smooth')) { gfx.failed = gfx.level; gfx.failedAt = performance.now(); } const from = gfx.level, e0 = ema; if (near30 && from < 4 && !gfx.notCap) { applyGfx(5, 'is it a 30 fps cap? testing'); gfx.probe = { from, ema0: e0, t: 0 }; } else applyGfx(gfx.level + 1, Math.round(1 / ema) + ' fps'); } }
   else { gfx.slow = Math.max(0, gfx.slow - dt * .5);
     // (build 33) a steady 30 fps cap (iPhone Low Power Mode) hides how much headroom there is. If each frame's own work is
     // small (well under the 33 ms the cap allows) for 20 s, step the picture quality back UP a level. A level that then
@@ -963,36 +1134,37 @@ function step(dt) {
   updatePit(dt); updateWorldAnim(dt, T); updateParticles(dt);
 }
 function frame() {
-  if (graphicsLost) return;
-  const frameT0 = performance.now(); checkSize();
+  const frameT0 = performance.now();
   { const now = performance.now(); if (lastFrameAt && perfMon && !G.activityOpen) perfMon.frame(now - lastFrameAt, now); lastFrameAt = now; } // (build 26: monitor: a few numbers per frame)
   if (G.activityOpen) { requestAnimationFrame(frame); return; } // (build 25: a learning game is open: the 3D world sleeps)
+  checkSize(frameT0);
   // fixed 1/60 s physics steps: the game runs at the same speed on fast and slow devices
   timer.update(); const raw = Math.min(timer.getDelta(), .25); acc += raw;
   let n = 0; while (acc >= 1 / 60 && n < 15) { step(1 / 60); acc -= 1 / 60; n++; }
   if (n === 15) acc = 0; // (a physics step costs ~0.2-0.4 ms, so catching up keeps the game at real speed even when frames drop)
   const dt = Math.max(1 / 60, n / 60);
-  if (started) updateBits(T); updateHint(T);
+  if (started) updateBits(T); updateHint(T); updateActionPrompt();
+  if (started) adventures?.update();
   const P = player;
   // build 17: draw the creature between the last two physics steps (smooth on 60/90/120 Hz screens), and move the camera every frame
   const a = Math.min(1, acc * 60), far = Math.abs(P.x - prevP.x) > 2 || Math.abs(P.y - prevP.y) > 2; // (no blending across teleports)
   const ix = far ? P.x : prevP.x + (P.x - prevP.x) * a, iy = far ? P.y : prevP.y + (P.y - prevP.y) * a, iz = far ? P.z : prevP.z + (P.z - prevP.z) * a;
   { const sx = P.x, sy = P.y, sz = P.z; P.x = ix; P.y = iy; P.z = iz; updateCamera(raw); P.x = sx; P.y = sy; P.z = sz; }
-  creature.root.position.set(ix, iy, iz);
-  { const gy = P.ride ? P.y : groundUnder(P.x, P.y), hgt = Math.max(0, P.y - gy), k = Math.max(.25, 1 - hgt / 4); blob.visible = !(P.ride && (P.ride.type === 'slide')) && !P.swim; blob.position.set(P.x, gy + .015, P.z); blob.scale.setScalar(k); shadowMat.opacity = k; }
-  { const sliding = P.ride && (P.ride.type === 'slide' || P.ride.type === 'kart' || P.ride.type === 'train' || P.ride.type === 'whale'), k = Math.min(1, dt * 10), sy = P.crawl ? .6 : sliding ? .62 : 1, sx = P.crawl ? 1.15 : sliding ? .62 : 1; creature.root.scale.set(lerp(creature.root.scale.x, sx, k), lerp(creature.root.scale.y, sy, k), lerp(creature.root.scale.z, sx, k)); }
+  creature.root.position.set(ix, iy, iz); creature.root.visible = !G.playerHidden;
+  { const gy = P.ride ? P.y : groundUnder(P.x, P.y), hgt = Math.max(0, P.y - gy), k = Math.max(.25, 1 - hgt / 4); blob.visible = !(P.ride && (P.ride.type === 'slide')) && !P.swim && !G.playerHidden; blob.position.set(P.x, gy + .015, P.z); blob.scale.setScalar(k); shadowMat.opacity = k; }
+  { const sliding = P.ride && (P.ride.type === 'slide' || P.ride.type === 'kart' || P.ride.type === 'train' || P.ride.type === 'whale'), k = Math.min(1, dt * 10), sy = P.crawl ? .6 : sliding ? .62 : 1, sx = P.crawl ? 1.15 : sliding ? .62 : 1; creature.root.scale.set(lerp(creature.root.scale.x, sx, k), lerp(creature.root.scale.y, sy, k), lerp(creature.root.scale.z, sx, k)); } G.playerBody = creature.root; // (build 48: the crown and wand sit on her as she is drawn: smaller on a ride)
   creature.update(dt, { vx: P.vx, vy: P.vy, grounded: P.grounded || !!P.ride, seated: !!P.ride && P.ride.type !== 'slide', facing: P.facing, happy: P.happy });
   P.happy = Math.max(0, P.happy - dt);
   $('paintTools').classList.toggle('show', started && (nearPaint() || meadow.nearColor(player)));
   $('buildTools').classList.toggle('show', started && meadow.nearBuild(player));
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').classList.remove('shown'); }
   if (saveTimer > 0) { saveTimer -= dt; if (saveTimer <= 0) save(); }
+  if (world.comfort?.calm) world.flash = 0;
   if (world.flash > 0) { world.flash -= dt * 2.5; $('flash').style.opacity = Math.max(0, world.flash); }
   renderer.shadowMap.needsUpdate = (++shadowTick % shadowEvery) === 0; // (build 24: the sun never moves and most shadow casters stand still: redraw the shadow map every other frame)
   renderer.info.reset(); // (build 26: count every pass of the frame, not just the last one)
-  graphicsStep('Drawing live game');
   if (post.enabled) post.render(); else renderer.render(scene, camera);
-  if (!TEST && !SAFE_GRAPHICS && !/[?&]hq/.test(location.search)) { gfx.work += (performance.now() - frameT0 - gfx.work) * .05; adapt(raw); }
+  if (!TEST && !/[?&]hq/.test(location.search) && !G.adaptFrozen) { gfx.work += (performance.now() - frameT0 - gfx.work) * .05; adapt(raw); }
   requestAnimationFrame(frame);
 }
 
@@ -1005,8 +1177,8 @@ friends.restored(); meadow.restored(); karts.rebuildPreview(); expansion.restore
 updateCounters(); snapCamera(); updateBits(0);
 // (build 9: arrow buttons are back, so there is no drag hint)
 if (saved) $('playBtn').textContent = 'KEEP PLAYING ▶';
-$('playBtn').addEventListener('click', () => { Sound.unlocked = true; started = true; $('overlay').classList.add('hidden'); document.body.classList.add('playing'); Sound.chime(); if (!saved) toast('✨ Find the 6 lost baby Fluffkins and take them home!'); });
-addEventListener('pagehide', save); document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+$('playBtn').addEventListener('click', () => { if (MOBILE && !TEST && fsAvailable()) goFullscreen(); /* (build 36: a phone or tablet in the browser plays full screen where allowed) */ Sound.unlocked = true; started = true; $('overlay').classList.add('hidden'); document.body.classList.add('playing'); adventures?.intro(); Sound.chime(); if (!saved) toast('✨ Find the 6 lost baby Fluffkins and take them home!'); });
+addEventListener('pagehide', save); document.addEventListener('visibilitychange', () => { lastFrameAt = 0; /* (build 39: time spent in the background, e.g. while copying the test results, is not a 10-second 'freeze') */ if (document.hidden) { save(); /* (build 36: iPhone may not send 'blur' when the app is switched away: let go of every button, so nothing is stuck when she comes back) */ if (stick) stickEnd(); keys.left = keys.right = keys.up = keys.down = false; padPointer = null; document.querySelectorAll('.pressed').forEach(b => b.classList.remove('pressed')); } else resize(); });
 // (build 24) the lamps of the house and the underground: a FIXED pool of 3 point lights that is always in the scene.
 // Switching lights on and off (build 22) changed the number of lights, which forces every material in the game to
 // recompile its shader: that was the freeze when entering the house. Now the light count never changes; the pool
@@ -1030,7 +1202,7 @@ let lodTick = 0, poolTick = 0, poolDt = 0, shadowTick = 0;
 // Seven signposts in the park and valley (numbers, letters, colors & shapes, thinking, science, music & art,
 // feelings). Tap one (or PAW next to it) to open its learning games; the games are a light 2D layer and the
 // 3D world pauses while they're open.
-const learning = initLearning({ Sound, voice, setSound: on => { setSound(on); save(); }, world, save: () => save(), discover: id => { if (!world.disc.has(id)) { world.disc.add(id); saveSoon(); } }, pause: on => { G.activityOpen = on; if (!on) { timer.update(); acc = 0; } }, TEST });
+const learning = initLearning({ G, Sound, voice, setSound: on => { setSound(on); save(); }, world, save: () => save(), discover: id => { if (id.startsWith('learn_')) adventures?.event({type:'learn',id:id.slice(6)}); if (!world.disc.has(id)) { world.disc.add(id); saveSoon(); } }, pause: on => { G.releaseInputs?.(); G.activityOpen = on; if (!on) { timer.update(); acc = 0; } }, TEST, event: e => adventures?.event(e) });
 G.learning = learning;
 { const signTex = e => { const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'); g.fillStyle = '#fff6fb'; g.beginPath(); g.arc(64, 64, 60, 0, 7); g.fill(); g.lineWidth = 8; g.strokeStyle = '#c9a6ff'; g.stroke(); g.font = '72px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(e, 64, 70); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
   const wood = toy('#c98a5a', { r: .7, cc: .1 }), glow = toy('#fff3a6', { em: '#ffd76a', ei: .9, r: .4 });
@@ -1039,10 +1211,12 @@ G.learning = learning;
   for (const [cat, [icon]] of Object.entries(learning.corners)) {
     let x = PREF[cat]; const busy = taken(); for (let k = 0; k < 40 && busy.some(b => Math.abs(b - x) < 3.2); k++) x += (k % 2 ? -1 : 1) * (k + 1) * .8;
     const g = new THREE.Group(), z = -1.95; g.position.set(x, 0, z); scene.add(g);
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(.07, .09, 1.7, 12), wood); post.position.y = .85; g.add(post);
-    const sign = new THREE.Mesh(new THREE.CircleGeometry(.48, 40), new THREE.MeshStandardMaterial({ map: signTex(icon), roughness: .6 })); sign.position.set(0, 1.95, .06); g.add(sign);
-    const back = new THREE.Mesh(new THREE.CylinderGeometry(.53, .53, .08, 40), toy('#b28cff', { r: .5 })); back.rotation.x = Math.PI / 2; back.position.set(0, 1.95, 0); g.add(back);
-    const star = new THREE.Mesh(starGeometry(.16, .08, .05, .02, 5), glow); star.position.set(0, 2.62, 0); g.add(star); g.userData.star = star;
+    // (build 43) A PLAY SPOT instead of a signpost (signs overlapped other things, and a pre-reader can't tell a sign is a
+    // game): a glowing, sparkling circle on the ground with the corner's toy floating and turning above it.
+    const pad = new THREE.Mesh(new THREE.CylinderGeometry(.78, .82, .08, 40), toy('#fff6fb', { r: .5 })); pad.position.y = .04; g.add(pad);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(.8, .07, 10, 40), glow); ring.rotation.x = Math.PI / 2; ring.position.y = .1; g.add(ring);
+    const toyM = makeToyModel(icon); toyM.scale.setScalar(1.3); toyM.position.y = 1.35; g.add(toyM); g.userData.toy = toyM; g.userData.ring = ring;
+    const star = new THREE.Mesh(starGeometry(.12, .06, .04, .02, 5), glow); star.position.set(.55, 1.9, 0); g.add(star); g.userData.star = star;
     g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.userData.tap = () => learning.showCorner(cat); } }); G.taps.push(g);
     G.interact.push({ x, y: 0, layer: '', disc: 'corner_' + cat, run: () => learning.showCorner(cat), hintY: 2.9 });
     (G.learnSigns = G.learnSigns || []).push(g);
@@ -1090,7 +1264,7 @@ function sliceScenery() {
 }
 G.unslice = o => { if (o && o.parent && o.parent.userData.slice) scene.attach(o); }; // (something that starts to follow you leaves its slice)
 function updateSlices() { for (const g of slices) { const near = Math.abs(g.userData.x - camT.x) < 52; if (near && !g.parent) scene.add(g); else if (!near && g.parent) scene.remove(g); } }
-const begin = () => { if (begun || graphicsLost || localWarmupPending) return; begun = true; G.startupMs = Math.round(performance.now()); try { chunkInstanced(); sliceScenery(); updateSlices(); } catch (e) { console.log('slices skipped', e); } renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true; requestAnimationFrame(frame); setTimeout(() => $('loading').classList.add('done'), 250); };
+const begin = () => { if (begun) return; begun = true; G.startupMs = Math.round(performance.now()); try { chunkInstanced(); sliceScenery(); updateSlices(); } catch (e) { console.log('slices skipped', e); } renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true; requestAnimationFrame(frame); if (needPortraits) setTimeout(() => { try { portraits = renderPortraits(); localStorage.setItem(PORTRAIT_KEY, JSON.stringify(portraits)); } catch (e) { } applyPortraits(); }, 60); setTimeout(() => $('loading').classList.add('done'), 250); };
 // (build 24) shaders: compile everything in the scene before play starts (the light count is now fixed, so these stay
 // valid), then compile the model files' materials as soon as they arrive (in the background where the phone supports
 // parallel compiling), so nothing compiles the first time it comes into view.
@@ -1107,9 +1281,8 @@ const compileAll = () => {
 };
 // (build 29) prepare one newly built neighbourhood's shaders before it appears (in the background where supported)
 function warmGroup(g) { // (build 29) one rehearsal draw of a newly streamed neighbourhood, into the real buffer, before you can see it
-  if (localWarmupPending || graphicsLost) return;
   try { const b = new THREE.Box3().setFromObject(g), c = b.getCenter(new THREE.Vector3()), cam = camera.clone(); cam.position.set(c.x, 2.15, CAM_DIST); cam.lookAt(c.x, 1.15, 0); cam.updateMatrixWorld();
-    const prev = renderer.getRenderTarget(), sm = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = false; if (post.enabled && !post.lite) { G.warmRT = G.warmRT || makeWarmTarget(true); renderer.setRenderTarget(G.warmRT); renderer.render(scene, cam); } renderer.setRenderTarget(prev); renderer.shadowMap.autoUpdate = sm; } catch (e) { }
+    const prev = renderer.getRenderTarget(), sm = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = false; if (post.enabled && !post.lite) { G.warmRT = G.warmRT || new THREE.WebGLRenderTarget(64, 32, { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(64, 32), depthBuffer: true }); renderer.setRenderTarget(G.warmRT); renderer.render(scene, cam); } renderer.setRenderTarget(prev); renderer.shadowMap.autoUpdate = sm; } catch (e) { }
 }
 G.warmGroup = warmGroup;
 function compileGroup(g) { const prev = renderer.getRenderTarget(); if (post.enabled) renderer.setRenderTarget(post.target); let r; try { r = renderer.extensions.has('KHR_parallel_shader_compile') ? renderer.compileAsync(g, camera, scene) : Promise.resolve(renderer.compile(g, camera, scene)); } catch (e) { r = Promise.resolve(); } renderer.setRenderTarget(prev); return r; }
@@ -1120,9 +1293,8 @@ function compileGroup(g) { const prev = renderer.getRenderTarget(); if (post.ena
 const WARM_LAYER = 5, warmCam = new THREE.PerspectiveCamera(45, 2, .1, 60); warmCam.layers.set(WARM_LAYER);
 scene.traverse(o => { if (o.isLight) o.layers.enable(WARM_LAYER); }); // (lights are seen on every layer, so the shaders are the real ones)
 function warmObjects(list) {
-  if (localWarmupPending || graphicsLost) return;
   if (!list.length || !(post.enabled && !post.lite)) return;
-  G.warmRT = G.warmRT || makeWarmTarget(true);
+  G.warmRT = G.warmRT || new THREE.WebGLRenderTarget(64, 32, { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(64, 32), depthBuffer: true });
   const prev = renderer.getRenderTarget(), sm = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = false; const V0 = new THREE.Vector3();
   for (const o of list) {
     let root = o; while (root.parent && root.parent !== scene && !root.parent.isScene) root = root.parent;
@@ -1134,43 +1306,22 @@ function warmObjects(list) {
   renderer.setRenderTarget(prev); renderer.shadowMap.autoUpdate = sm;
 }
 const fresh = [];
-function compileFresh() {
-  if (graphicsLost) return;
-  // A startup GPU fence must cover just its submitted pass. Defer other
-  // rehearsal draws until the bounded startup sequence has finished.
-  if (localWarmupPending) { compileTimer = setTimeout(compileFresh, 300); return; }
-  Promise.resolve(compileAll()).then(() => warmObjects(fresh.splice(0)), () => {});
-}
-let compileTimer = 0; globalThis.__ddwCompile = obj => { if (obj) fresh.push(obj); clearTimeout(compileTimer); compileTimer = setTimeout(compileFresh, 300); };
+let compileTimer = 0; globalThis.__ddwCompile = obj => { if (obj) fresh.push(obj); clearTimeout(compileTimer); compileTimer = setTimeout(() => { Promise.resolve(compileAll()).then(() => warmObjects(fresh.splice(0)), () => { }); }, 300); };
 // PRELOAD THE AREAS: while the loading screen shows, draw each area once into a tiny invisible picture (the house
 // upstairs and downstairs, the underground, the clouds, the castle, the park), with the sun's shadow over it. That
 // makes the graphics driver finish every shader and upload every texture and mesh NOW, not the first time you walk in.
-async function warmAreas() { const warmT0 = performance.now(), local = GRAPHICS.localShadowWarmup;
+function warmAreas() { const warmT0 = performance.now();
   // (build 29) rehearse into the SAME picture buffer the game really draws into (4x anti-aliased, with a depth texture,
   // or the lite one). The graphics driver prepares a separate drawing setup for each kind of buffer; rehearsing into a
   // plain small buffer (builds 24-28) left the real setups to be made on first sight: the stall when entering the house.
-  const full = post.enabled && !post.lite, rt = makeWarmTarget(full), /* (tiny, but exactly the same kind of buffer: the setups depend on the kind, not the size) */ cam = camera.clone(), shadowAuto = renderer.shadowMap.autoUpdate;
+  const full = post.enabled && !post.lite, rt = new THREE.WebGLRenderTarget(64, 32, full ? { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(64, 32), depthBuffer: true } : { type: THREE.HalfFloatType }), /* (tiny, but exactly the same kind of buffer: the setups depend on the kind, not the size) */ cam = camera.clone(), shadowAuto = renderer.shadowMap.autoUpdate;
   const sp = sun.position.clone(), st = sun.target.position.clone();
-  const shown = [], back = [];
-  const metrics = G.shadowWarmup = { local, localPasses: 0, wideShadowPasses: 0, completedBatches: 0 };
   try {
-    let first = true, reachedUnderground = false;
-    const views = [[1008, 0], [1012, 4.4], [1020, 0], [20, UG.floor], [45, UG.floor], [54, SKY.y], [406, 0], [2010, 0]];
-    if (local) views.unshift([5, 0], [150, 0], [230, 0]);
-    for (const [x, y] of views) {
+    let first = true;
+    for (const [x, y] of [[1008, 0], [1012, 4.4], [1020, 0], [20, UG.floor], [45, UG.floor], [54, SKY.y], [406, 0], [2010, 0]]) {
       cam.position.set(x, y + 2.15, CAM_DIST); cam.lookAt(x, y + 1.15, 0); cam.updateMatrixWorld();
       sun.position.set(x - 7, y + 16, 10); sun.target.position.set(x, y, 0); sun.target.updateMatrixWorld();
-      if (x === 20 && y === UG.floor) reachedUnderground = true;
-      if (GRAPHICS.worldShadowCheck && (first || (GRAPHICS.worldShadowCheckAreas && reachedUnderground))) {
-        await checkWorldShadows({ renderer, scene, camera: cam, sun, target: rt, report: graphicsReport, step: graphicsStep, view: { x, y } });
-      }
-      graphicsStep(`Warming local view at ${x}, ${y}`);
-      if (local) { renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true; metrics.localPasses++; }
-      renderer.setRenderTarget(rt); renderer.render(scene, cam); if (first) { renderer.shadowMap.autoUpdate = false; first = false; }
-      if (local) {
-        renderer.setRenderTarget(null);
-        await waitForGpu(renderer); metrics.completedBatches++;
-      }
+      renderer.setRenderTarget(rt); renderer.render(scene, cam); if (first) { renderer.shadowMap.autoUpdate = false; first = false; } // (shadow shaders only need one pass)
     }
     // (build 29) then draw EVERY object in the world once (things only shown when near, fur, far-away characters too),
     // with wide straight-on cameras over the outdoor world, the house, the castle rooms and the underground, so no
@@ -1178,56 +1329,37 @@ async function warmAreas() { const warmT0 = performance.now(), local = GRAPHICS.
     // (only ONE of each kind of hidden thing is shown for it: the driver's setups depend on the kind, not the number,
     //  and drawing every far tree at once made loading much longer on slow devices)
     const sig = o => { const k = []; o.traverse(q => { if (q.isMesh) k.push(q.material.uuid || '', q.geometry.attributes.uv ? 'u' : '', q.isSkinnedMesh ? 's' : '', q.isInstancedMesh ? 'i' : ''); }); return k.join(','); };
-    const kinds = new Set(); for (const it of LOD) if (!it.o.visible) { const k = sig(it.o); if (kinds.has(k)) continue; kinds.add(k); it.o.visible = true; shown.push(it.o); } for (const f of FUR) for (const sh of f.shells) if (!sh.visible) { sh.visible = true; shown.push(sh); }
-    if (G.life) for (const a of G.life.agents) if (a.detached) { a.detached.add(a.root); back.push(a); }
+    const shown = [], kinds = new Set(); for (const it of LOD) if (!it.o.visible) { const k = sig(it.o); if (kinds.has(k)) continue; kinds.add(k); it.o.visible = true; shown.push(it.o); } for (const f of FUR) for (const sh of f.shells) if (!sh.visible) { sh.visible = true; shown.push(sh); }
+    const back = []; if (G.life) for (const a of G.life.agents) if (a.detached) { a.detached.add(a.root); back.push(a); }
+    // (build 44) one picture sprite too: since the neighbourhood signposts were removed (build 43), nothing drew a sprite
+    // early, so the first one met in play (the 🏠 at the end of the Art Plaza) waited 0.27 s for its shader on the iPhone
+    const warmSprite = expansion.pictureSign ? expansion.pictureSign('🏠', 1) : null; if (warmSprite) { warmSprite.position.set(60, 3, 0); scene.add(warmSprite); }
     const oc = new THREE.OrthographicCamera(-1, 1, 1, -1, .1, 120);
-    for (const [x0, x1, y0, y1] of /[?&]noortho/.test(location.search) ? [] : [[-25, 120, -14, 16], [120, 260, -2, 16], [260, 430, -2, 22], [995, 1035, -1, 11], [1990, 2045, -1, 14]]) {
+    for (const [x0, x1, y0, y1] of /[?&]noortho/.test(location.search) ? [] : [[-25, 120, -14, 16], [120, 260, -2, 16], [260, 430, -2, 22], [995, 1035, -1, 11], [1990, 2045, -1, 14], [898, 944, -1, 13], [-704, -656, -1, 13]] /* (build 44: and the sky stairs at both ends: drawn for the first time in play, they froze the Art Plaza for 0.27 s on the iPhone) */) {
       oc.left = -(x1 - x0) / 2; oc.right = (x1 - x0) / 2; oc.top = (y1 - y0) / 2; oc.bottom = -(y1 - y0) / 2; oc.position.set((x0 + x1) / 2, (y0 + y1) / 2, 40); oc.lookAt((x0 + x1) / 2, (y0 + y1) / 2, 0); oc.updateProjectionMatrix(); oc.updateMatrixWorld();
       // (shadows too: each kind of shadow-casting thing has its own shadow shader; the sun's shadow box is stretched over the region for this one draw)
       const sc = sun.shadow.camera, keep = [sc.left, sc.right, sc.top, sc.bottom, sc.far];
       sun.position.set((x0 + x1) / 2 - 7, y1 + 16, 10); sun.target.position.set((x0 + x1) / 2, (y0 + y1) / 2, 0); sun.target.updateMatrixWorld();
-      if (!local) {
-        Object.assign(sc, { left: -(x1 - x0) / 2 - 10, right: (x1 - x0) / 2 + 10, top: (y1 - y0) + 10, bottom: -(y1 - y0) - 10, far: 120 }); sc.updateProjectionMatrix();
-        metrics.wideShadowPasses++;
-      }
-      graphicsStep(`Warming scenery ${x0} to ${x1}`);
-      // Keep all color/material warmup, but never cast the entire world into
-      // one giant shadow view. Local shadow variants were exercised above.
-      renderer.shadowMap.needsUpdate = !local; renderer.setRenderTarget(rt); renderer.render(scene, oc);
+      Object.assign(sc, { left: -(x1 - x0) / 2 - 10, right: (x1 - x0) / 2 + 10, top: (y1 - y0) + 10, bottom: -(y1 - y0) - 10, far: 120 }); sc.updateProjectionMatrix();
+      renderer.shadowMap.needsUpdate = true; renderer.setRenderTarget(rt); renderer.render(scene, oc);
       [sc.left, sc.right, sc.top, sc.bottom, sc.far] = keep; sc.updateProjectionMatrix();
-      if (local) {
-        renderer.setRenderTarget(null);
-        await waitForGpu(renderer); metrics.completedBatches++;
-      }
     }
+    for (const o of shown) o.visible = false; for (const a of back) a.detached.remove(a.root); if (warmSprite) scene.remove(warmSprite);
     G.warmed = (G.warmed || 0) + 1; G.warmMs = Math.round(performance.now() - warmT0);
-  } catch (e) { G.warmErr = String(e); if (local) throw e; }
-  finally {
-    for (const o of shown) o.visible = false; for (const a of back) a.detached.remove(a.root);
-    renderer.shadowMap.autoUpdate = shadowAuto; renderer.shadowMap.needsUpdate = true;
-    renderer.setRenderTarget(null); if (rt.depthTexture) rt.depthTexture.dispose(); rt.dispose(); sun.position.copy(sp); sun.target.position.copy(st); sun.target.updateMatrixWorld();
-    graphicsReport.shadowWarmup = metrics;
-  }
+  } catch (e) { G.warmErr = String(e); }
+  renderer.shadowMap.autoUpdate = shadowAuto; renderer.shadowMap.needsUpdate = true;
+  renderer.setRenderTarget(null); if (rt.depthTexture) rt.depthTexture.dispose(); rt.dispose(); sun.position.copy(sp); sun.target.position.copy(st); sun.target.updateMatrixWorld();
 }
 Promise.race([Promise.all([assetsReady, landmarksReady]), new Promise(r => setTimeout(r, 6000))])
-  .then(() => GRAPHICS.shadowPreflight ? primeShadowMap({ renderer, scene, sun, full: post.enabled && !post.lite, report: graphicsReport, step: graphicsStep }) : undefined)
-  .then(() => { graphicsStep('Compiling scene materials'); return compileAll(); })
-  .then(() => warmAreas()).then(() => { localWarmupPending = false; begin(); }, e => {
-    localWarmupPending = false;
-    if (GRAPHICS.localShadowWarmup) { if (!graphicsLost) {
-      graphicsReport.startupError = e.message; graphicsReport.lastSubmittedStage = graphicsStage;
-      window.__oops?.('Graphics startup stopped: ' + e.message); showGraphicsReport();
-    } }
-    else begin();
-  });
+  .then(() => compileAll()).then(() => { warmAreas(); begin(); }, begin);
 setTimeout(begin, 15000);
 
 // debug/test hook (used by the automated tests only)
-window.__DDW3 = { THREE, graphics: GRAPHICS, graphicsReport,
+window.__DDW3 = { THREE,
   player, world, keys, fluffs, G, camera, Sound, save, IN, renderer, FR: THREE.Frustum, LOWSTATS, SCULPT_STATS,
   teleport(x, y = 0) { player.ride = null; player.stair = null; player.layer = x >= 2000 ? 'castle' : x >= 1000 ? 'in' : ''; player.x = x; player.y = y; player.vx = player.vy = 0; player.grounded = y === 0; snapCamera(); },
   toScreen(x, y, z = 0) { V.set(x, y, z).project(camera); const r = canvas.getBoundingClientRect(); return { x: (V.x + 1) / 2 * r.width + r.left, y: (1 - V.y) / 2 * r.height + r.top }; },
-  pick(cx, cy) { pointerRay({ clientX: cx, clientY: cy }); return ray.intersectObjects([creature.root, ...G.taps], true).slice(0, 4).map(h => { let o = h.object, n = 0; while (o && !o.userData.tap && !o.userData.creature) { o = o.parent; n++; } return [h.object.type, h.distance.toFixed(2), o ? (o.userData.creature ? 'creature' : 'tap') : 'none', h.object.position.x.toFixed(1), o ? (o.name || Object.keys(o.userData).join('/')) : '', (() => { let r = h.object; while (r.parent && r.parent !== scene && !r.parent.userData.slice) r = r.parent; return r.name || r.type + '@' + r.position.x.toFixed(1); })()]; }); },
+  pick(cx, cy) { pointerRay({ clientX: cx, clientY: cy }); return ray.intersectObjects([creature.root, ...G.taps], true).filter(h=>isVisibleTarget(h.object,scene)).slice(0, 4).map(h => { let o = h.object, n = 0; while (o && !o.userData.tap && !o.userData.creature) { o = o.parent; n++; } return [h.object.type, h.distance.toFixed(2), o ? (o.userData.creature ? 'creature' : 'tap') : 'none', h.object.position.x.toFixed(1), o ? (o.name || Object.keys(o.userData).join('/')) : '', (() => { let r = h.object; while (r.parent && r.parent !== scene && !r.parent.userData.slice) r = r.parent; return r.name || r.type + '@' + r.position.x.toFixed(1); })()]; }); },
   bodyScaleY: () => creature.parts.body.scale.y, friends, meadow, karts, train, marbles, kingdom: () => kingdom, meadowRestore: () => meadow.restored(),
   bubbles: () => bubbles.length, info: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geos: renderer.info.memory.geometries, progs: renderer.info.programs.length }), post, quality: () => quality, nearDoor: () => nearDoor() && nearDoor().kind,
 };
@@ -1238,19 +1370,23 @@ window.__DDW3 = { THREE, graphics: GRAPHICS, graphicsReport,
 renderer.info.autoReset = false;
 let lastFrameAt = 0;
 G.doAction = doAction; G.soundOn = () => Sound.on;
-const perfMon = initPerf({ renderer, G, world, player, keys, fluffs, post, sun, doAction }); G.perfMon = perfMon;
+const GAME_BUILD = '48'; G.build = GAME_BUILD;
+const perfMon = initPerf({ renderer, G, world, player, keys, fluffs, post, sun, doAction, build: GAME_BUILD }); G.perfMon = perfMon;
 {
   const btn = document.createElement('button'); btn.className = 'pill'; btn.id = 'gearBtn'; btn.setAttribute('aria-label', 'settings for grown-ups (hold)'); btn.textContent = '⚙️';
   $('soundBtn').after(btn);
   const pan = document.createElement('div'); pan.id = 'perfPanel';
   pan.innerHTML = `<div class="pp"><div class="ppHead">Grown-ups: performance <button data-a="close" aria-label="close">✖</button></div>
-    <button data-a="mon">📊 Monitor: <b>off</b></button><button data-a="test">▶ Performance Test (about 30 s)</button><button data-a="copy">📋 Copy Test Results</button><button data-a="voice">🗣️ Test the voice</button><div class="ppTier">Learning games: <button data-a="t1">1 Super easy</button><button data-a="t2">2 Learning more</button><button data-a="t3">3 Kindergarten ready</button></div>
+    <button data-a="mon">📊 Monitor: <b>off</b></button><button data-a="test">▶ Performance Test (about 30 s)</button><button data-a="copy">📋 Copy Test Results</button><button data-a="voice">🗣️ Test the voice</button><div class="ppTier ppVoices"></div><div class="ppInfo ppVoiceTip">For the most natural voice: on the iPhone open Settings → Accessibility → Spoken Content → Voices → English and download <b>Ava (Premium)</b> or <b>Zoe (Premium)</b> (free, works offline). The game uses it automatically; choose it here to be sure.</div><div class="ppTier">Learning games: <button data-a="t1">1 Super easy</button><button data-a="t2">2 Learning more</button><button data-a="t3">3 Kindergarten ready</button></div>
     <div class="ppInfo"></div><textarea readonly rows="7" placeholder="Run the test, then Copy Test Results and paste them into the chat."></textarea>
+    <div class="ppTier ppMode">Graphics: <button data-a="m-auto">Auto</button><button data-a="m-quality">Quality</button><button data-a="m-balanced">Balanced</button><button data-a="m-performance">Performance</button></div>
+    <button data-a="full" class="small fsOnly">⛶ Full screen</button>
     <button data-a="reset" class="small">↺ Reset automatic graphics</button><button data-a="wipe" class="small danger">🗑️ Start over (erase all progress)</button></div>`;
   document.body.appendChild(pan);
   const block = document.createElement('div'); block.id = 'perfBlock'; block.innerHTML = '<div>⏱️ <span></span></div>'; document.body.appendChild(block);
   const ta = pan.querySelector('textarea'), info = pan.querySelector('.ppInfo'), monB = pan.querySelector('[data-a=mon] b');
-  const refresh = () => { pan.querySelectorAll('.ppTier button').forEach(b => b.classList.toggle('on', +b.dataset.a[1] === learning.tier())); monB.textContent = perfMon.isShown() ? 'on' : 'off'; const g = G.gfx || {}; info.textContent = `Graphics level ${g.level ?? '?'} of 5 (0 = best; changes by itself if the game runs slowly)${g.changes && g.changes.length ? ' · ' + g.changes.slice(-3).join(', ') : ''}`; ta.value = perfMon.report(); };
+  const refreshVoices = () => { const box = pan.querySelector('.ppVoices'); const vs = voice.voices ? voice.voices() : []; box.innerHTML = vs.length ? 'Voice: ' + vs.map(v => `<button data-a="v:${v.name.replace(/"/g, '')}" class="${v.current ? 'on' : ''}">${v.name}${v.quality ? ' ★' : ''}</button>`).join('') : ''; };
+  const refresh = () => { refreshVoices(); pan.querySelectorAll('.ppTier button').forEach(b => b.classList.toggle('on', /^m-/.test(b.dataset.a) ? b.dataset.a === 'm-' + (G.gfx || {}).mode : +b.dataset.a[1] === learning.tier())); pan.querySelector('.fsOnly').style.display = fsAvailable() ? '' : 'none'; monB.textContent = perfMon.isShown() ? 'on' : 'off'; const g = G.gfx || {}; info.textContent = `Graphics level ${g.level ?? '?'} of 5 (0 = best; ${g.mode === 'auto' ? 'changes by itself if the game runs slowly' : 'fixed: ' + g.mode}) · ${DEV.kind}${DEV.ios ? ' (Apple)' : DEV.android ? ' (Android)' : ''}${DEV.standalone ? ', Home Screen app' : ''} · picture ${canvas.width}×${canvas.height}${g.changes && g.changes.length ? ' · ' + g.changes.slice(-3).join(', ') : ''}`; ta.value = perfMon.report(); };
   // (build 28) iPhone: a long press makes Safari start its own gesture, which CANCELS the touch (pointercancel) even
   // though the finger is still down. So only a real lift ends the hold; a quick tap shows a small "hold me" hint.
   let holdT = null, downAt = 0, opened = false;
@@ -1267,9 +1403,12 @@ const perfMon = initPerf({ renderer, G, world, player, keys, fluffs, post, sun, 
       if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = '⚠️ Tap again to erase everything'; setTimeout(() => { b.dataset.armed = ''; b.textContent = '🗑️ Start over (erase all progress)'; }, 4000); return; }
       G.erasing = true; try { localStorage.removeItem(SAVE_KEY); } catch (err) { } location.reload(); return; }
     if (/^t[123]$/.test(a)) { learning.setTier(+a[1]); refresh(); }
+    if (/^m-/.test(a)) { setGfxMode(a.slice(2)); refresh(); }
+    if (/^v:/.test(a)) { if (!Sound.on) setSound(true); voice.unlock(); voice.choose(a.slice(2)); voice.speak('Hi Dawson! Let\'s go and play!'); refreshVoices(); }
+    if (a === 'full') { goFullscreen(); pan.classList.remove('show'); }
     if (a === 'voice') { if (!Sound.on) setSound(true); voice.unlock(); voice.speak('Hello! Can you hear me? Let\'s play and learn!'); setTimeout(() => { info.textContent = 'Voice: ' + perfMon.voiceLine(); }, 2500); }
     if (a === 'mon') { perfMon.show(!perfMon.isShown()); refresh(); }
-    if (a === 'reset') { try { localStorage.removeItem('ddw3-gfx-b26'); } catch (err) { } if (G.resetGfx) G.resetGfx(); refresh(); }
+    if (a === 'reset') { try { localStorage.removeItem(GFX_KEY); localStorage.removeItem(MODE_KEY); } catch (err) { } gfx.mode = 'auto'; budgetScale = 1; if (G.resetGfx) G.resetGfx(); refresh(); }
     if (a === 'copy') {
       const txt = perfMon.report() || 'No test has been run yet. Press ▶ Performance Test first.';
       let ok = false; try { await navigator.clipboard.writeText(txt); ok = true; } catch (err) { }
@@ -1299,10 +1438,10 @@ function travel([icon, name, x]) {
   left.innerHTML = '<button class="pill" id="mapBtn" aria-label="map">🗺️</button><button class="pill" id="homeBtn" aria-label="go home">🏠</button>';
   $('top').insertBefore(left, $('top').firstChild);
   const mp = document.createElement('div'); mp.id = 'mapPanel';
-  mp.innerHTML = `<div class="mpIn"><button class="mpX" aria-label="close">✖</button><div class="mpGrid">${TRAVEL.map((t, i) => `<button class="mpT" data-i="${i}">${t[0]}</button>`).join('')}</div></div>`;
+  mp.innerHTML = `<div class="mpIn"><button class="mpX" aria-label="close">✖</button><div class="mpGrid">${TRAVEL.map((t, i) => `<button class="mpT" data-i="${i}">${destinationArt(t[0], i)}<small>${t[1]}</small><span class="mapDiscovery"></span></button>`).join('')}</div></div>`;
   document.body.appendChild(mp);
   const tapEl = (el, fn) => el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); Sound.unlocked = true; fn(e); });
-  tapEl($('mapBtn'), () => { if (G.activityOpen) return; const P = player, here = P.layer === '' ? TRAVEL.reduce((b, t, i) => Math.abs(t[2] - P.x) < Math.abs(TRAVEL[b][2] - P.x) ? i : b, 1) : -1; mp.querySelectorAll('.mpT').forEach((b, i) => b.classList.toggle('here', i === here)); mp.classList.add('show'); Sound.click(); voice.speak('Where do you want to go? Tap a picture!'); });
+  tapEl($('mapBtn'), () => { if (G.activityOpen) return; const P = player, here = P.layer === '' ? TRAVEL.reduce((b, t, i) => Math.abs(t[2] - P.x) < Math.abs(TRAVEL[b][2] - P.x) ? i : b, 1) : -1; mp.querySelectorAll('.mpT').forEach((b, i) => { b.classList.toggle('here', i === here); b.setAttribute('aria-label','Visit '+TRAVEL[i][1]); const id=expansion.districts.find(d=>d.home===TRAVEL[i][2])?.id; const questId=({frosty:'snow',labgarden:'science',artplaza:'art'})[id]||id; const found=(ADVENTURES[questId]?.steps||[]).filter(st=>world.adventures?.events.includes(st.event)).map(st=>st.icon).slice(0,2).join(''); b.querySelector('.mapDiscovery').textContent=found||(world.adventures?.events.includes('visit_'+(id||['home','playhouse','studio','lab','park','castle'][i]))?'⭐':''); }); mp.classList.add('show'); Sound.click(); voice.speak('Where do you want to go? Tap a picture!'); });
   tapEl(mp.querySelector('.mpX'), () => { mp.classList.remove('show'); Sound.click(); });
   mp.querySelectorAll('.mpT').forEach(b => tapEl(b, () => { mp.classList.remove('show'); travel(TRAVEL[+b.dataset.i]); }));
   tapEl($('homeBtn'), () => { if (G.activityOpen) return; travel(TRAVEL[0]); });
@@ -1321,9 +1460,12 @@ function trainArrived(i) {
   document.body.appendChild(strip);
   strip.querySelectorAll('.tsT').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); Sound.unlocked = true; train.goTo(+b.dataset.i); Sound.click(); }));
   let shown = false, lastAt = -1;
+  // (build 36) the strip starts just below the top buttons, however tall they are (on a narrow phone they wrap onto two rows)
+  const placeStrip = () => { let b = 0; for (const el of document.querySelectorAll('#upperLeft, #upperRight')) b = Math.max(b, el.getBoundingClientRect().bottom); strip.style.top = Math.round(b + 6) + 'px'; };
+  G.placeTrainStrip = placeStrip; addEventListener('resize', () => { if (shown) placeStrip(); });
   G.updateTrainStrip = () => {
     const P = player, T = train.state, show = !!(P.ride && P.ride.type === 'train' && T.mode === 'driving' && T.dest < 0 && Math.abs(T.vs) < .05);
-    if (show !== shown) { shown = show; strip.classList.toggle('show', show); if (show) voice.speak('Where shall we go? Tap a picture!'); }
+    if (show !== shown) { shown = show; if (show) placeStrip(); strip.classList.toggle('show', show); if (show) voice.speak('Where shall we go? Tap a picture!'); }
     if (show && T.at !== lastAt) { lastAt = T.at; strip.querySelectorAll('.tsT').forEach((b, i) => b.classList.toggle('here', i === T.at)); }
   };
 }
@@ -1339,4 +1481,49 @@ function trainArrived(i) {
   const tapEl = (el, fn) => el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); Sound.unlocked = true; fn(e); });
   tapEl(btn, () => { if (G.activityOpen) return; draw(); pn.classList.add('show'); Sound.click(); voice.speak('Your pet friends! Tap one to bring it along, or to send it home.'); });
   tapEl(pn.querySelector('.mpX'), () => { pn.classList.remove('show'); Sound.click(); });
+}
+
+// ---------------- Build 40: connected adventures ----------------
+G.started = () => started;
+G.releaseInputs = () => {
+ keys.left=keys.right=keys.up=keys.down=false; keys.scale=1; G.walkTo=null; painting=null; padPointer=null;
+ if(stick)stickEnd(); document.querySelectorAll('.pressed').forEach(b=>b.classList.remove('pressed'));
+};
+G.setModalOpen = on => { G.activityOpen=on; G.releaseInputs(); if(!on){timer.update();acc=0;lastFrameAt=0;} };
+G.closePanels = () => { G.nursery?.close(); adventures?.close(); for(const id of ['mapPanel','petsPanel','stylePanel'])$(id)?.classList.remove('show'); };
+const comfort = initComfort({world,Sound,voice,G,save}); G.comfort=comfort;
+$('pawBtn').insertAdjacentHTML('beforeend','<span id="pawLabel" aria-hidden="true">🐾</span>');
+let reactionAt=0;
+G.reactCompanions = e => {
+ if(G.perfTest||performance.now()-reactionAt<1500)return;
+ if(!['sea','learn'].includes(e.type)&&!['fish_caught','fluff_home','treasure_dug','furnish','gallery_visit'].includes(e.id))return;
+ reactionAt=performance.now();for(const a of G.life?.agents||[])if(a.follower&&Math.abs(a.x-player.x)<15)G.life.tap(a,1.4,e.id==='whale'?1:0);
+};
+adventures=initAdventures({world,player,G,voice,Sound,save,saveSoon,travel,learning,fluffs,comfort,release:G.releaseInputs,pause:G.setModalOpen,cheer:()=>{creature.cheer();player.happy=1.4;}});
+G.adventures=adventures;
+G.nursery=initNursery({world,G,Sound,voice,save});
+// Shared-shape home decorations are only shown after earning them. No extra shaders or textures.
+{
+ const W=G.W,group=new THREE.Group();group.name='adventure-home';group.userData.dynamic=true;group.visible=true;group.position.set(0,0,0);scene.add(group);
+ const rewardObjects=new Map();
+ const shape=(parent,x,y,z,w,h,d,color)=>W.block(x,y,z,w,h,d,color,{parent,r:.08});
+ for(const [i,id]of ['nest','cushion','rainbow','garden','train','basket','owl','snow','flower','frame','pirate'].entries()){
+  const item=new THREE.Group();group.add(item);item.visible=false;
+  const x=1007+(i%6)*1.35,y=i<6?1.7:2.8;
+  shape(item,x,y,-4.35,.72,.3,.55,RAINBOW[i%RAINBOW.length]);
+  if(id==='pirate'){shape(item,x,y+.3,-4.35,.07,.9,.07,'#9a6a3a');shape(item,x+.2,y+.85,-4.35,.45,.3,.06,'#ff4f9a');}
+  if(id==='rainbow')for(let k=0;k<5;k++)shape(item,x-.3+k*.15,y+.25+Math.sin(k/4*Math.PI)*.4,-4.35,.13,.15,.15,RAINBOW[k]);
+  if(id==='garden'||id==='flower')for(let k=0;k<3;k++){shape(item,x-.25+k*.25,y+.25,-4.35,.06,.4,.06,'#36c96b');shape(item,x-.25+k*.25,y+.65,-4.35,.18,.15,.15,RAINBOW[k]);}
+  if(id==='train'){shape(item,x,y+.3,-4.35,.45,.4,.35,'#2fa8ff');shape(item,x+.3,y+.2,-4.35,.22,.24,.35,'#ff4f9a');}
+  rewardObjects.set(id,item);
+ }
+ G.updateAdventureWorld=()=>{
+  if(player.layer==='in'){if(!group.parent){scene.add(group);group.updateMatrixWorld(true);}if(!G.taps.includes(frame))G.taps.push(frame);const trainToy=rewardObjects.get('train');if(trainToy?.visible)trainToy.position.x=world.comfort?.calm?0:Math.sin(T*.8)*.35;}
+  else {if(group.parent)scene.remove(group);const tapIndex=G.taps.indexOf(frame);if(tapIndex>=0)G.taps.splice(tapIndex,1);}
+ };
+ G.refreshAdventureWorld=()=>{for(const[id,item]of rewardObjects)item.visible=world.adventures?.rewards.includes(id)||false;const cushion=rewardObjects.get('cushion');if(cushion?.children[0])cushion.children[0].material=W.M(({pink:'#ff9acb',blue:'#91cfff',green:'#a5e6b5'})[world.adventures?.cushion]||'#ff9acb');};
+ // A permanent picture on the wall opens the saved gallery without needing to read.
+ const frame=W.block(1015.7,2.2,-4.4,1,.8,.12,'#ffd23f',{parent:group,r:.1});
+ const openGallery=()=>adventures.gallery();frame.userData.tap=openGallery;G.taps.push(frame);G.interact.push({x:1015.7,y:0,layer:'in',icon:'🖼️',action:'Open home gallery',run:openGallery,hintY:2.5});
+ G.refreshAdventureWorld(); G.updateAdventureWorld();
 }

@@ -54,7 +54,7 @@ export function buildWorld(G) {
     g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = 4; for (const v of [0, 128, 256]) { g.beginPath(); g.moveTo(v, 0); g.lineTo(v, 256); g.moveTo(0, v); g.lineTo(256, v); g.stroke(); }
     const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
   };
-  const ZONES = [[-406, -274, 'snow'], [-274, -150, 'lawn'], [-150, -20, 'sand'], [-20, 51, '#ffb3dc', '#ff8fca'], [51, 92, '#ffe39a', '#ffcf6a'], [92, 135, '#cdb8ff', '#b39cff'], [135, 312, '#9fe8b4', '#7fdc9a'], [312, 356, '#c4e2ff', '#a9d3ff'], [356, 394, '#d9f2b4', '#c5e89c'], [394, 432, '#ffdcef', '#ffc9e4'], [432, 548, 'lawn'], [548, 668, '#ffd6a5', '#ffc38a'], [668, 788, 'lawn'], [788, 906, '#c8f5e6', '#a8ecd4']];
+  const ZONES = [[-704, -670, 'sand'], [-670, -538, 'sand'], [-538, -406, 'lawn'], [-406, -274, 'snow'], [-274, -150, 'lawn'], [-150, -20, 'sand'], [-20, 51, '#ffb3dc', '#ff8fca'], [51, 92, '#ffe39a', '#ffcf6a'], [92, 135, '#cdb8ff', '#b39cff'], [135, 312, '#9fe8b4', '#7fdc9a'], [312, 356, '#c4e2ff', '#a9d3ff'], [356, 394, '#d9f2b4', '#c5e89c'], [394, 432, '#ffdcef', '#ffc9e4'], [432, 548, 'lawn'], [548, 668, '#ffd6a5', '#ffc38a'], [668, 788, 'lawn'], [788, 906, '#c8f5e6', '#a8ecd4'], [906, 944, '#c8f5e6', '#a8ecd4']]; // (build 43: room at both ends for the stairs to the sky)
   // floor holes: the deep part of the ball pit (a shaft down to the secret underground) and the glass lift
   const HOLES = [[10.8, 14.4, -1.2, 1.2], [52.6, 54.2, -3.2, -1.6]];
   // a normal map so each tile has softly rounded edges and grout lines that catch the light (made once, shared)
@@ -96,13 +96,13 @@ export function buildWorld(G) {
     floorPiece(a, hx0, -12, 6, c1, c2); floorPiece(hx1, b, -12, 6, c1, c2); floorPiece(hx0, hx1, -12, hz0, c1, c2); floorPiece(hx0, hx1, hz1, 6, c1, c2);
   }
   // a cobblestone path through the park, the meadow and the valley (where you walk)
-  for (const [x0, x1] of [[LAWN_FROM, LAWN_TO], [432, 906], [-406, -20]]) { // build 19: a real cobblestone texture set (colour, normal, roughness) from tools/textures/make_cobble.py
+  for (const [x0, x1] of [[LAWN_FROM, LAWN_TO], [432, 944], [-704, -20]]) { // build 19: a real cobblestone texture set (colour, normal, roughness) from tools/textures/make_cobble.py
     const C = USE_ASSETS ? cobbleSet() : cobbleTextures(), cl = t => { if (!t) return null; const k = t.clone(); k.needsUpdate = true; return k; }, map = cl(C.map), nm = cl(C.normal), rm = cl(C.rough); for (const t of [map, nm, rm]) if (t) t.repeat.set((x1 - x0) / 3, 1); // (each path piece has its own tiling)
     const path = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, 3), macroVariation(new THREE.MeshStandardMaterial({ map, normalMap: nm, normalScale: new THREE.Vector2(.75, .75), roughness: rm ? 1 : .82, roughnessMap: rm }), { scale: .13, amount: .08 }));
     path.rotation.x = -Math.PI / 2; path.position.set((x0 + x1) / 2, .006, 0); path.receiveShadow = true; add(path);
     for (const z of [-1.55, 1.55]) { const edge = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, .07, .14), M('#fff6ea', { r: .6, cc: .2 })); edge.position.set((x0 + x1) / 2, .035, z); edge.receiveShadow = true; add(edge); } }
   // front edge of the floor (a rounded rail, so the world has a nice edge)
-  block(144, -.6, 4.6, 328, .6, .8, '#ffb8de', { r: .3, cast: false }); block(370, -.6, 4.6, 124, .6, .8, '#ffb8de', { r: .3, cast: false }); block(669, -.6, 4.6, 474, .6, .8, '#ffb8de', { r: .3, cast: false }); block(-147, -.6, 4.6, 254, .6, .8, '#ffb8de', { r: .3, cast: false }); block(-340, -.6, 4.6, 132, .6, .8, '#ffb8de', { r: .3, cast: false }); // (build 30: and to the left) // (build 29: on to the new neighbourhoods)
+  block(144, -.6, 4.6, 328, .6, .8, '#ffb8de', { r: .3, cast: false }); block(370, -.6, 4.6, 124, .6, .8, '#ffb8de', { r: .3, cast: false }); block(669, -.6, 4.6, 474, .6, .8, '#ffb8de', { r: .3, cast: false }); block(-147, -.6, 4.6, 254, .6, .8, '#ffb8de', { r: .3, cast: false }); block(-340, -.6, 4.6, 132, .6, .8, '#ffb8de', { r: .3, cast: false }); block(-472, -.6, 4.6, 132, .6, .8, '#ffb8de', { r: .3, cast: false }); block(-604, -.6, 4.6, 132, .6, .8, '#ffb8de', { r: .3, cast: false }); // (build 35: the farm; build 38: the pier) // (build 30: and to the left) // (build 29: on to the new neighbourhoods)
 
   // ---------- back walls ----------
   const wallAO = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, map: (() => { const c = document.createElement('canvas'); c.width = 4; c.height = 64; const g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 64); gr.addColorStop(0, 'rgba(50,15,70,.32)'); gr.addColorStop(.45, 'rgba(50,15,70,.1)'); gr.addColorStop(1, 'rgba(50,15,70,0)'); g.fillStyle = gr; g.fillRect(0, 0, 4, 64); return new THREE.CanvasTexture(c); })() });
@@ -239,7 +239,7 @@ export function buildWorld(G) {
   [[138, -4.5], [152, -5], [170, -4.2], [178, -5.5], [200, -4.8], [223, -5.2], [238, -5.6], [249, -5], [256, -4.4], [262.5, -9], [274, -13.4], [283, -14], [292, -13.2], [300, -10.5], [270, -1.6], [312, -4.6], [319, -5.4], [345, -5], [351, -4.2], [308, -13], [338, -12]].forEach(([x, z], i) => tree(x, z, 1 + (i % 2) * .3));
   // GRASS (build 15): real blades in clumps, swaying in the wind (in chunks so off-screen grass isn't drawn)
   G.grassTime = { value: 0 };
-  grassField(scene, { x0: 136, x1: 394, time: G.grassTime, ok: (x, z) => !(
+  G.grassMeshes = grassField(scene, { x0: 136, x1: 394, time: G.grassTime, ok: (x, z) => !(
     (Math.abs(x - 144) < 5.5 && z < -1 && z > -10.5) || (x > 271.5 && x < 300 && z < -2.4 && z > -11.4) || (x > 325.5 && x < 338.5 && z > -3.6) ||
     (z > 0 && STATION_XS.some(sx => Math.abs(x - sx) < 2.8)) || (x > 183.5 && x < 196.5 && z > -4.6) || (x > 260 && x < 271 && z > -6) || (Math.abs(x - 363.4) < 1.6 && z > -3.6)) });
   // natural rocks
@@ -334,7 +334,7 @@ export function buildWorld(G) {
   // =================== FLUFFKIN HOUSE (outside) ===================
   const H = new THREE.Group(); H.position.set(190, 0, -2.2); add(H);
   block(0, 0, 0, 11, 6.5, 4, '#fff1b0', { parent: H, r: .4, m: { r: .5, cc: .4 } });
-  const hroof = new THREE.Mesh(new THREE.ConeGeometry(7.6, 3.6, 4), M('#ff65b5')); hroof.position.y = 8.3; hroof.rotation.y = Math.PI / 4; hroof.scale.z = .5; hroof.castShadow = true; H.add(hroof);
+  const hroof = new THREE.Mesh(new THREE.ConeGeometry(11.8 / Math.SQRT2, 3.6, 4).rotateY(Math.PI / 4), M('#ff65b5')); hroof.position.y = 8.3; hroof.scale.z = 4.9 / 11.8; /* (build 46: the pyramid is turned in its SHAPE before it is squashed front-to-back, so the roof is a straight rectangle over the 11 x 4 m house with a small overhang; turning the object squashed it on the slant, and from the sky the roof looked crooked) */ hroof.castShadow = true; H.add(hroof);
   const door = block(0, 0, 2.05, 1.9, 3.2, .3, '#a15cff', { parent: H, r: .5 });
   sph(.6, 1.6, 2.25, .1, '#ffd84a', { parent: H });
   for (const [x, y] of [[-3.4, 3.8], [3.4, 3.8], [-3.4, 1.4], [3.4, 1.4]]) { block(x, y, 2.02, 1.6, 1.3, .2, '#ffffff', { parent: H, r: .3 }); const g = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 1), new THREE.MeshStandardMaterial({ color: '#fff3a6', emissive: '#ffd76a', emissiveIntensity: .5 })); g.position.set(x, y + .65, 2.14); H.add(g); }

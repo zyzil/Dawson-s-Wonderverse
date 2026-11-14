@@ -16,6 +16,7 @@
 // ===================================================================
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { toy, ball, face, starGeometry } from './creatures.js';
 import { NOTES } from './audio.js';
 import { plush, quadSpec, personSpec } from './critterkit.js';
@@ -180,7 +181,8 @@ export function initKingdom(G, api) {
     tapObj(door, () => { door.userData.open = 1.6; Sound.chime(); burst(K.castle, 2, -3.5, ['#ffd23f', '#ff8fc8', '#fff', '#b28cff'], 24, 3); discover('castle', 'The Princess Castle! Dance on the shiny floor!'); setTimeout(() => enterCastle(), 350); });
   }
   // ---------- build 16: a magical castle front ----------
-  { const add2 = (m, x, y, z) => { m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; C.add(m); return m; };
+  const FRONT = []; // (build 37: every still part of the castle front, merged below)
+  { const add2 = (m, x, y, z) => { m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; C.add(m); FRONT.push(m); return m; };
     // steps up to the door, and a golden arch around it
     for (let i = 0; i < 3; i++) add2(new THREE.Mesh(new RoundedBoxGeometry(3.6 - i * .4, .14, .9 - i * .25, 2, .05), toy('#fff4fa', { r: .6, cc: .2 })), 0, .07 + i * .14, -3.5 - i * .2);
     const archT = new THREE.Mesh(new THREE.TorusGeometry(1.38, .1, 12, 40, Math.PI), goldM); add2(archT, 0, 2.6, -3.98);
@@ -217,6 +219,22 @@ export function initKingdom(G, api) {
   const flags = [];
   for (const tx of [-6.6, 6.6, 0]) { const f = new THREE.Mesh(new THREE.PlaneGeometry(.9, .5, 6, 1), new THREE.MeshStandardMaterial({ color: tx ? '#ff6fae' : '#ffd23f', side: THREE.DoubleSide })); const y = tx ? 13.1 : 13.4, z = tx ? -4.9 : -5.6; const pole = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 1.2, 6), trimM); pole.position.set(tx, y - .3, z); C.add(pole); f.position.set(tx + .45, y, z); C.add(f); flags.push(f); f.userData.p0 = f.geometry.attributes.position.array.slice(); }
   C.traverse(o => { if (o.isMesh && o.castShadow === false && o.geometry.type !== 'CircleGeometry') o.castShadow = true; });
+  // (build 37) FEWER DRAW CALLS: the castle front was about 175 separate little parts (steps, railings, flower boxes,
+  // climbing roses, hedges...), each drawn on its own, twice when shadows update. None of them moves or is tapped, so the
+  // parts that share a material are merged into ONE shape per material: the same picture, the same materials (no new
+  // shaders), about 160 fewer draw calls whenever the castle is in view.
+  // (materials made separately but looking exactly the same count as the same material)
+  const matLook = M => { const c = v => v && v.isColor ? v.getHexString() : v && v.isVector2 ? v.x + '/' + v.y : v && v.uuid ? v.uuid : v; return [M.type, ...['color', 'emissive', 'emissiveIntensity', 'roughness', 'metalness', 'clearcoat', 'clearcoatRoughness', 'sheen', 'sheenRoughness', 'sheenColor', 'map', 'normalMap', 'normalScale', 'emissiveMap', 'alphaMap', 'metalnessMap', 'aoMap', 'roughnessMap', 'transparent', 'opacity', 'side', 'vertexColors', 'flatShading', 'transmission', 'iridescence', 'envMapIntensity'].map(k => String(c(M[k])))].join(','); };
+  { const groups = new Map();
+    for (const m of FRONT) { if (!m.isMesh || m.children.length || m.parent !== C) continue; const g = m.geometry, key = matLook(m.material) + '|' + (g.index ? 'i' : 'n') + '|' + Object.keys(g.attributes).sort().join(',') + '|' + m.castShadow;
+      if (!groups.has(key)) groups.set(key, []); groups.get(key).push(m); }
+    let merged = 0;
+    for (const list of groups.values()) { if (list.length < 2) continue;
+      const geos = list.map(m => { m.updateMatrix(); const g = m.geometry.clone(); g.applyMatrix4(m.matrix); for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k); return g; });
+      let one = null; try { one = mergeGeometries(geos, false); } catch (e) { one = null; } geos.forEach(g => g.dispose()); if (!one) continue;
+      const mm = new THREE.Mesh(one, list[0].material); mm.castShadow = list[0].castShadow; mm.receiveShadow = true; C.add(mm);
+      for (const m of list) { C.remove(m); m.geometry.dispose(); } merged += list.length; }
+    G.castleMerged = merged; }
 
   // the royal fountain
   const fx = K.castle + 9.5, fz = -2.6;
@@ -316,7 +334,7 @@ export function initKingdom(G, api) {
   plat({ a: CI.ox + 17.5, b: CI.ox + 21.5, y: .3, z: -3.3, layer: 'castle', step: true });
   plat({ a: CI.ox + 18, b: CI.ox + 21, y: .6, z: -3.3, layer: 'castle', step: true });
   plat({ a: CI.ox + 18.9, b: CI.ox + 20.1, y: .95, z: -3.3, layer: 'castle' });
-  const sitThrone = () => { const P = api.player; if (P.layer !== 'castle' || P.ride) return; P.x = CI.ox + 19.5; P.y = 1.4; P.vx = 0; P.vy = 0; P.grounded = false; Sound.chime(); [0, 4, 7, 12].forEach((n, i) => Sound.tone(NOTES[n % 8] * (n > 7 ? 2 : 1), .3, 'triangle', .04, 1, i * .15)); burst(CI.ox + 19.5, 3, -3, ['#ffd23f', '#fff3a6', '#ff8fc8', '#fff'], 26, 3); discover('throne', 'You sit on the royal throne!'); };
+  const sitThrone = () => { const P = api.player; if (P.layer !== 'castle' || P.ride) return; P.x = CI.ox + 19.5; P.y = 1.4; P.vx = 0; P.vy = 0; P.grounded = false; Sound.chime(); Sound.withMusic(() => [0, 4, 7, 12].forEach((n, i) => Sound.tone(NOTES[n % 8] * (n > 7 ? 2 : 1), .3, 'triangle', .04, 1, i * .15))); burst(CI.ox + 19.5, 3, -3, ['#ffd23f', '#fff3a6', '#ff8fc8', '#fff'], 26, 3); discover('throne', 'You sit on the royal throne!'); };
   icTap(throne, sitThrone, 19.5, 'throne', 3.9);
   // the crystal chandelier (tap it and it sparkles and spins)
   const chand = new THREE.Group(); chand.position.set(12, 7.3, -1.6); IC.add(chand);
@@ -326,7 +344,7 @@ export function initKingdom(G, api) {
     for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; const cr = new THREE.Mesh(new THREE.OctahedronGeometry(.13), new THREE.MeshPhysicalMaterial({ color: '#e6f8ff', roughness: .02, clearcoat: 1, iridescence: 1, emissive: '#bfe8ff', emissiveIntensity: .2 })); cr.position.set(Math.cos(a) * 1.2, -.3, Math.sin(a) * 1.2); cr.scale.y = 1.6; chand.add(cr); chand.userData.crystals.push(cr); }
     for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; chand.add(ball(toy('#fff6b0', { em: '#ffd84a', ei: 1.2 }), .08, Math.cos(a) * 1.2, .2, Math.sin(a) * 1.2)); } }
   let chandSpin = 0;
-  icTap(chand, () => { chandSpin = 2.5; Sound.twinkle && Sound.twinkle(); [7, 9, 11, 12, 14].forEach((n, i) => Sound.bell(NOTES[n % 8] * 2, .03, i * .1)); burst(CI.ox + 12, 6.5, -1.6, ['#ffffff', '#bfe8ff', '#fff3a6'], 26, 3); discover('chandelier', 'The sparkly chandelier!'); }, 12, 'chandelier', 1.2);
+  icTap(chand, () => { chandSpin = 2.5; Sound.twinkle && Sound.twinkle(); Sound.withMusic(() => [7, 9, 11, 12, 14].forEach((n, i) => Sound.bell(NOTES[n % 8] * 2, .03, i * .1))); burst(CI.ox + 12, 6.5, -1.6, ['#ffffff', '#bfe8ff', '#fff3a6'], 26, 3); discover('chandelier', 'The sparkly chandelier!'); }, 12, 'chandelier', 1.2);
   // the royal party cake (tap: the candles light up; tap again: blow them out)
   const cake = new THREE.Group(); cake.position.set(6.5, 0, -2.8); IC.add(cake);
   const flames = [];
@@ -336,7 +354,7 @@ export function initKingdom(G, api) {
     for (let i = 0; i < 3; i++) { const x = (i - 1) * .2; const cnd = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, .3, 8), toy(['#3d9bff', '#ffd23f', '#3cc46e'][i])); cnd.position.set(x, 2.47, 0); cake.add(cnd); const fl = new THREE.Mesh(new THREE.SphereGeometry(.06, 10, 8), new THREE.MeshBasicMaterial({ color: '#ffcf4a' })); fl.scale.y = 1.6; fl.position.set(x, 2.7, 0); fl.visible = false; cake.add(fl); flames.push(fl); }
     for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; cake.add(ball(toy(['#ff4f6e', '#ffffff'][i % 2], { r: .3 }), .06, Math.cos(a) * .62, 1.6, Math.sin(a) * .62)); }
     cake.traverse(o => { if (o.isMesh && o.material.type !== 'MeshBasicMaterial') o.castShadow = true; }); }
-  icTap(cake, () => { const lit = !flames[0].visible; flames.forEach(f => { f.visible = lit; }); if (lit) { [0, 0, 1, 0, 3, 2].forEach((n, i) => Sound.tone(NOTES[n] , .25, 'triangle', .045, 1, i * .22)); burst(CI.ox + 6.5, 3, -2.8, ['#ff4f9a', '#ffd23f', '#3d9bff', '#3cc46e', '#fff'], 30, 3.5); } else { Sound.whoosh(); burst(CI.ox + 6.5, 2.8, -2.8, ['#ffffff', '#e9dcff'], 12, 1.5); } discover('cake', 'A royal party cake! Tap to light the candles.'); }, 6.5, 'cake', 3.2);
+  icTap(cake, () => { const lit = !flames[0].visible; flames.forEach(f => { f.visible = lit; }); if (lit) { Sound.withMusic(() => [0, 0, 1, 0, 3, 2].forEach((n, i) => Sound.tone(NOTES[n] , .25, 'triangle', .045, 1, i * .22))); burst(CI.ox + 6.5, 3, -2.8, ['#ff4f9a', '#ffd23f', '#3d9bff', '#3cc46e', '#fff'], 30, 3.5); } else { Sound.whoosh(); burst(CI.ox + 6.5, 2.8, -2.8, ['#ffffff', '#e9dcff'], 12, 1.5); } discover('cake', 'A royal party cake! Tap to light the candles.'); }, 6.5, 'cake', 3.2);
   // a music box with a tiny dancer (tap it: music, and she twirls)
   const mbox = new THREE.Group(); mbox.position.set(13.8, 0, -3.2); IC.add(mbox);
   let dancer, mlid, music = 0;
@@ -348,7 +366,7 @@ export function initKingdom(G, api) {
     dancer.add(ball(toy('#ffd1ec'), .05, 0, .26, 0, 1, 1.4, 1)); dancer.add(ball(toy('#f6d0b4'), .05, 0, .37, 0)); dancer.add(ball(toy('#8a5530'), .035, 0, .42, -.01));
     const leg = new THREE.Mesh(new THREE.CylinderGeometry(.012, .012, .14, 6), toy('#f6d0b4')); leg.position.y = .07; dancer.add(leg);
     mbox.traverse(o => { if (o.isMesh) o.castShadow = true; }); }
-  icTap(mbox, () => { music = 4; const tune = [4, 2, 0, 2, 4, 4, 4, 2, 2, 2, 4, 7, 7]; tune.forEach((n, i) => Sound.bell(NOTES[n % 8] * 2, .035, i * .28)); discover('musicbox', 'A music box with a tiny dancer!'); }, 13.8, 'musicbox', 2.4);
+  icTap(mbox, () => { music = 4; const tune = [4, 2, 0, 2, 4, 4, 4, 2, 2, 2, 4, 7, 7]; Sound.withMusic(() => tune.forEach((n, i) => Sound.bell(NOTES[n % 8] * 2, .035, i * .28))); discover('musicbox', 'A music box with a tiny dancer!'); }, 13.8, 'musicbox', 2.4);
   // the royal toy chest (tap: the lid pops open and toys bounce out)
   const chest = new THREE.Group(); chest.position.set(23, 0, -2.6); IC.add(chest);
   let clid, toysOut = [];
@@ -396,16 +414,17 @@ export function initKingdom(G, api) {
     spray = Math.max(0, spray - dt);
     if (Math.random() < dt * (spray > 0 ? 40 : 3)) burst(fx + (Math.random() - .5) * .3, 2 + (spray > 0 ? 1 : 0), fz, spray > 0 ? ['#9fe6ff', '#ffffff', '#fff3a6', '#b28cff'] : ['#9fe6ff', '#ffffff'], spray > 0 ? 3 : 1, spray > 0 ? 3.2 : 1);
     // crown above your head
-    myCrown.visible = !!world.crown;
-    if (world.crown) { myCrown.position.set(P.x, P.y + (G.headTop || 2) + .22 + Math.sin(t * 3) * .05, P.z); myCrown.rotation.y = t * .8; }
+    myCrown.visible = !!world.crown && !G.playerHidden; // (build 48: hidden while you sit inside the rocket)
+    const pb = G.playerBody, by = pb ? pb.position.y : P.y, sy = pb ? pb.scale.y : 1; /* (build 48: on the whale she is drawn smaller, and the crown floated high above her) */
+    if (world.crown) { myCrown.position.set(pb ? pb.position.x : P.x, by + (G.headTop || 2) * sy + .22 + Math.sin(t * 3) * .05, pb ? pb.position.z : P.z); myCrown.rotation.y = t * .8; }
     // the wand floats at your side and sprinkles a little sparkle as you go
-    myWand.visible = !!world.wand;
-    if (world.wand) { const f = P.facing || 1; myWand.position.set(P.x - f * .7, P.y + 1 + Math.sin(t * 2.4) * .08, P.z + .35); myWand.rotation.z = f * .35 + Math.sin(t * 1.7) * .1; myWand.userData.star.rotation.y = t * 2;
+    myWand.visible = !!world.wand && !G.playerHidden;
+    if (world.wand) { const f = P.facing || 1; myWand.position.set((pb ? pb.position.x : P.x) - f * .7 * sy, by + sy + Math.sin(t * 2.4) * .08, (pb ? pb.position.z : P.z) + .35); myWand.rotation.z = f * .35 + Math.sin(t * 1.7) * .1; myWand.userData.star.rotation.y = t * 2;
       if (Math.abs(P.vx) > 1 && Math.random() < dt * 6) burst(myWand.position.x, myWand.position.y + .8, myWand.position.z, ['#fff3a6', '#b28cff', '#9fe6ff'], 1, .6); }
     // dance floor: the tile under you glows and plays a note; the princesses dance
     let on = -1;
     if (P.layer === '' && P.y < .2 && P.x > T0 && P.x < T0 + TW * TN && Math.abs(P.z) < 1.5) on = Math.floor((P.x - T0) / TW);
-    if (on >= 0 && on !== lastTile) { const k = on % 8; Sound.bell(NOTES[k] * (on >= 8 ? 2 : 1), .035); tiles.filter(tl => tl.i === on).forEach(tl => { tl.glow = 1; }); discover('dance', 'A dance floor! Every step plays music!'); }
+    if (on >= 0 && on !== lastTile) { const k = on % 8; Sound.withMusic(() => Sound.bell(NOTES[k] * (on >= 8 ? 2 : 1), .035)); tiles.filter(tl => tl.i === on).forEach(tl => { tl.glow = 1; }); discover('dance', 'A dance floor! Every step plays music!'); }
     lastTile = on; danceT = on >= 0 ? 1.2 : Math.max(0, danceT - dt);
     for (const tl of tiles) { tl.glow = Math.max(on === tl.i ? .6 : 0, tl.glow - dt * 1.5); tl.m.material.emissiveIntensity = .05 + tl.glow * 1.1 + (danceT > 0 ? (Math.sin(t * 6 + tl.i + tl.j * 2) * .5 + .5) * .25 : 0); }
     for (const c of [rosie, luna]) { if (danceT > 0 && c.act <= 0) { c.dance = (c.dance || 0) + dt; c.root.rotation.y = c.dance * 3; c.root.position.y = c.y + Math.abs(Math.sin(c.dance * 6)) * .12; } else c.dance = 0; if (c.parts.skirt) c.parts.skirt.scale.set(1 + (danceT > 0 ? .08 : 0), 1, 1 + (danceT > 0 ? .08 : 0)); }
