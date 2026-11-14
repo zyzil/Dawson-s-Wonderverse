@@ -501,6 +501,7 @@ function blastOff() {
 function rocketRide(dt, R) {
   const P = player, r = G.rockets[R.key]; if (!r || !inScene(r.g)) { launching = false; climbOut(null); return; }
   const g = r.g, t = rkNow() - R.t0, gz = g.position.z;
+  if (G.rkLog) { G.rkLog.phases.add(R.phase); G.rkLog.top = Math.max(G.rkLog.top, g.position.y - r.baseY); } // (test record: every phase really run, the highest point)
   if (R.phase === 'board') { // walk up to the door and hop in
     const k = Math.min(1, t / RK.board); P.x = R.x0 + (r.x - R.x0) * k; P.z = R.z0 + (gz + 1.05 - R.z0) * k; P.y = R.y0 + (r.baseY + .2 - R.y0) * k + Math.sin(k * Math.PI) * .8; P.facing = r.x >= R.x0 ? 1 : -1;
     if (k >= 1) { R.phase = 'in'; G.playerHidden = true; showFace(r, true); Sound.chime(); burst(r.x, r.baseY + 3.6, gz + 1, ['#fff3a6', '#ffffff', '#9fe6ff'], 10, 1.6); showPicker(); }
