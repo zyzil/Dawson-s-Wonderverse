@@ -4,6 +4,105 @@ Completed changes and how each was tested, newest first. Each checkpoint says wh
 browser vs. a real iPhone). The routine and rules are in `CLAUDE.md`; unfinished work is in `NEXT_TASKS.md`; measurements
 are in `PERFORMANCE_LOG.md`.
 
+## Checkpoint: Android rendering fixes (based on build 50) — mobile portrait readback and frame-safe resizing
+- **Reported:** Pixel character-selection boxes remain blank after the Android
+  update, and movement sometimes causes local flicker or a larger black flash.
+- Keep the original rendering pipeline. The only product source changed is
+  `src/main.js`; no shadow, shader, post-processing or quality-profile changes.
+- Capture the same three portrait renders with synchronous WebGL readPixels,
+  flip rows into ImageData and encode PNGs. This avoids the canvas-to-2D copy.
+  Refresh only the portrait cache key; saved progress and graphics choices are
+  untouched. Reject empty/lost-context reads and restore target, viewport,
+  scissor and shadow state in finally, including failed captures.
+- **Concrete black-frame bug:** applyGfx ran after rendering and called resize,
+  which clears the drawing buffer even when a frame was just completed.
+  Queue runtime resize requests and consume them at the next frame's size
+  check. Coalesce window/visual viewport/orientation/visibility/observer events.
+  Startup sizing remains immediate; requests during a 3D playroom wait until
+  the main world resumes. The quality choices themselves are unchanged.
+- Real WebGL fixtures reproduce a cleared frame (alpha 255 → 0) using the old
+  resize timing; the new quality request preserves alpha 255 until the next
+  frame redraw. They also verify coalescing and playroom deferral. Portrait
+  colours/orientation match normal canvas capture with maximum channel
+  difference 0. When the canvas-copy API is made to return a flat grey picture,
+  direct readback still returns the model. Throwing/empty reads restore state.
+- `tests/android-rendering.cjs` runs the focused tests; FULL_GAME_CHECK=1 also
+  checks actual portraits, obsolete-cache replacement, native PCF/4x AA,
+  end-of-frame quality changes, warm-cache reuse and saved progress.
+- All measurements here are desktop/software rendering, not physical iPhone
+  or Pixel results. Full-game/performance/smoke status is in PERFORMANCE_LOG.md.
+  The physical movement/object-flicker check remains pending.
+- The previous HTML is preserved locally as a separate baseline;
+  the PR does not add a duplicate generated backup.
+
+
+## Checkpoint: build 50 — bigger planets (the Moon and Mars first), only the current planet in memory
+- **The family asked** for much bigger planets with many more activities, and above all no extra lag. This build changes the system first, then expands two places.
+- **The planet system (`space.js`, new `planets.js`):**
+  - Places are now up to 330 m long instead of 110 (places are 400 m apart).
+  - Each new area is built only when she walks within 70 m of it, in small steps over several frames (terrain, then the activities, then shader compile, then shown).
+  - When she flies away, the whole planet is freed: meshes, materials, tap targets, PAW targets and floors. Only the planet she is on is ever in memory.
+  - The destination planet is built during the 3-2-1 countdown, not on arrival.
+  - Aliens far from her (over 45 m) rest and cost nothing.
+  - New scenery uses two shared unit shapes (a ball and a box), scaled.
+  - A little rocket sign at the start of each new area takes her back to her rocket.
+- **🌕 The Moon:**
+  - **Crater Valley:** a giant crater with a bouncy middle (low-gravity bounce), and a pretend explorer station with a dish that "calls Earth" (a radio message takes about 1 s).
+  - **Moon phases toy:** each tap moves the shadow: new, crescent, half, full.
+  - **Collecting:** moon rocks for a sample box, counted.
+  - **Moon Mountains:** big steps up to a star.
+  - **Hidden cave:** glowing crystals light up when she walks by and sing when tapped (said to be pretend).
+  - **Shape sorting:** round, square and triangle rocks into matching holes.
+  - **The moon buggy** (real astronauts drove one).
+  - **Footprints** stay in the moon dust wherever she walks (one instanced mesh of 40 prints; no wind on the Moon).
+  - More Moonbeam aliens.
+- **🔴 Mars:**
+  - **Canyon Country:** two mesas to climb, with a view and the Valles Marineris fact.
+  - **Five rocks that say what they are:** rust, layers, volcano, ice, river-rounded.
+  - **An ice cave** (real Mars has underground ice).
+  - **A blue sunset:** tap the sun and the sky turns blue (true on Mars).
+  - **The Explorer Station** (said to be pretend): a door that opens, and a greenhouse where tapping the pots grows plants up to a tomato.
+  - **The Ingenuity helicopter** flies.
+  - **Count Mars's two moons.**
+  - **A flag trail:** red, yellow, green, blue, in order, with unlimited retries.
+  - More Marslings.
+- **Verified (desktop, software rendering):**
+  - No page errors.
+  - Shader programs unchanged (138 in `?test`).
+  - Every new activity reports its discovery.
+  - She can walk up the Moon mountain (to 7 m) and the Mars mesa (6 m) by holding ▶.
+  - After flying to Mars, the Moon is gone from memory.
+  - New smoke checks: length, activities, one planet in memory, rocket signs.
+- **Not yet tried on the real iPhone.**
+
+## Checkpoint: build 49 — 🎈 Balloon Hills, a new region past the pier
+- **A new streamed district** (`builders.hills`, x −800 to −668). Map tile 🎈, train station 🎈 at x −788, gems g19 (hilltop) and g20.
+- **Activities (pictures, sounds and voice only):**
+  - **Hot-air balloon:** tap or PAW, and it puffs up and floats gently back down. The camera steps back and looks up to watch (`G.camPull`, `G.camLift`).
+  - **Kites:** tap one and it loops the loop.
+  - **Grassy hill:** climb the steps and PAW on the rainbow mat at the top to slide down. Gem on the top.
+  - **Mountain goat:** each tap is one hop up the rocks, counted aloud ("Hop! One!", "Two!", "Three!").
+  - **Echo rock:** hello comes back softer and softer (loud and soft).
+  - **Wind chimes:** long tubes sing low, short tubes sing high. PAW rings them all, low to high.
+  - **Dandelions:** tap and the seeds blow away on the wind; they grow back.
+  - A 🏠 sign takes you home.
+- **The world end moved:**
+  - The left rainbow stairs and Sky Kingdom gate moved from x −666 to −798 (`EXP.xMin` −698 → −830).
+  - Train line `TRAIN.x0` −666 → −798.
+  - Ground, path and the pink kerb extend to −836.
+  - Saves restore up to −794.
+- **Fixed on the way:** PAW at the top of the Frosty Peaks sledding hill never started the sled. PAW only reaches things within 3 m of her height, and the sled counted as ground level while she stood 4.8 m up. The sled and the new hill mat now carry their real height.
+- **Investigated (performance): the "walk into the Adventure Trail" long task.** A CPU profile of that walk (`tests/perf` style, 200 µs sampling) found no JavaScript run longer than about 18 ms, while the browser reported a 70 ms task at x 454. So the time is not spent in the game's code; most likely it is the software renderer (SwiftShader) waiting on itself. Recorded in NEXT_TASKS; no change made.
+- **Verified (desktop, software rendering):**
+  - Every activity, the slide by PAW, the 🎈 station first on the line and the moved sky gate, all checked in a browser.
+  - No page errors.
+  - Screenshots of each spot.
+  - New smoke-test checks (map, the six activities, the slide, station, sky gate).
+- **Short screens:** the extra map picture and train station did not fit on 320 px tall phones. A short-screen layout fixes it (6 map columns, 44 px station buttons, the smallest comfortable touch size).
+- **Test fixes (not game bugs):** Biscuit can stand behind the slide's tube for several seconds (more tries); the unicorn wanders (tap it where it is).
+- **Full smoke test 189/189, devices 11/11** (desktop emulation).
+- **Not yet tried on the real iPhone.**
+
 ## Checkpoint: build 48 — climb into the rocket, the big red button, a real lift-off
 - **The bug the family found:** PAW at the rocket blew bubbles. The Lab Gardens rocket (build 45) was placed at x 698, exactly on the bubble fountain. Both had PAW targets at 698, and the fountain's came first in the list. The rocket and its pad now stand at x 686, between the frog pal (678) and the fountain. `ROCKET_PAD` follows it, so flying home lands at 688.5.
 - **The rocket ride** is a new ride type in `main.js`, `P.ride = { type: 'rocket', phase }`:

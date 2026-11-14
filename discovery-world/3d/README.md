@@ -4,6 +4,17 @@ This is the full rebuild of Dawson's Discovery World in real 3D. It is a **separ
 
 Play: open `index.html`. It is one self-contained file and works offline. Once merged, it is also on GitHub Pages at `…/discovery-world/3d/`.
 
+## Android rendering fixes (based on build 50) — mobile portraits and frame-safe resizing
+
+Character previews now read pixels directly from WebGL and refresh the old
+portrait cache, preserving their colours and orientation. Empty readbacks are
+not cached, and the renderer state is restored after capturing the pictures.
+
+Screen and quality changes resize the canvas before the next game frame.
+Resizing it after drawing could clear the completed picture and cause a black
+flash. Shadows, antialiasing, effects and quality settings are unchanged. The
+Pixel still needs a physical check for any remaining object-level flicker.
+
 ## 3D build 41: Pet Nursery & Creative Studio
 
 Tap **🥚** to open Little Wonders, a furnished 3D pet playroom using the same sculpted pets and toy materials as the world, or choose **🥚 🎨** in the home gallery.
@@ -19,6 +30,30 @@ Tap **🥚** to open Little Wonders, a furnished 3D pet playroom using the same 
 - Fixed saved builder erasing, hidden objects intercepting taps, temporary scenery cleanup, learning reward/cancellation issues, and several touch-layout problems. Removed duplicate scene clearing and unnecessary work for distant creatures.
 
 Desktop software-rendering verification is recorded in DEVELOPMENT_LOG.md and PERFORMANCE_LOG.md. Real iPhone playtesting remains necessary.
+
+## 3D build 50: much bigger Moon and Mars
+
+- **The Moon and Mars are three times bigger,** each with two new areas:
+  - **The Moon:** a bouncy crater, a moon station that calls Earth, a moon-phases toy, collecting moon rocks, a mountain to climb, a hidden crystal cave, shape sorting, a moon buggy, and footprints that stay in the dust.
+  - **Mars:** mesas to climb, rocks that say what they are, an ice cave, a blue sunset, a pretend explorer base with a greenhouse, the little helicopter, Mars's two moons, and a flag trail.
+- **Faster where it counts:**
+  - Only the planet you are on is kept in memory.
+  - New areas are built bit by bit as you walk there.
+  - The planet you fly to is made during the countdown.
+- A little rocket sign in each new area takes you back to your rocket.
+
+## 3D build 49: Balloon Hills
+
+- **A new place past the Ocean Pier** (by map, train or walking):
+  - a hot-air balloon that floats up;
+  - kites that loop the loop;
+  - a grassy hill to climb and slide down;
+  - a goat that counts its hops;
+  - an echo rock;
+  - wind chimes (long ones low, short ones high);
+  - dandelions to blow.
+- The rainbow stairs to the Sky Kingdom are now at the far end of Balloon Hills.
+- PAW at the top of the snowy sledding hill now starts the sled.
 
 ## 3D build 48: climb into the rocket and press the big red button
 
