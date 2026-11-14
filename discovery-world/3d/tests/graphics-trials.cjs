@@ -48,6 +48,7 @@ async function main() {
         preflightShadows: getGraphicsProfile('?graphics=full-basic-shadows&preflight=1', ua),
         worldCheck: getGraphicsProfile('?graphics=full-basic-shadows&preflight=1&worldprobe=1', ua),
         areaCheck: getGraphicsProfile('?graphics=full-basic-shadows&preflight=1&worldprobe=areas', ua),
+        packed: getGraphicsProfile('?graphics=full-basic-shadows&shadowcode=receivers&bones=uniform&shadowstorage=rgba', ua),
         uniformBones: getGraphicsProfile('?graphics=full-basic-shadows&shadowcode=receivers&bones=uniform', ua),
         receiverPrograms: getGraphicsProfile('?graphics=full-basic-shadows&shadowcode=receivers', ua),
         noShadowPreflight: getGraphicsProfile('?graphics=full-no-shadows&preflight=1', ua),
@@ -74,6 +75,10 @@ async function main() {
     assert.equal(profiles.worldCheck.worldShadowCheck, true);
     assert.equal(profiles.areaCheck.worldShadowCheck, true);
     assert.equal(profiles.areaCheck.worldShadowCheckAreas, true);
+    assert.equal(profiles.packed.packedShadowDepth, true);
+    assert.equal(profiles.uniformBones.packedShadowDepth, false);
+    assert.equal(profiles.androidDefault.packedShadowDepth, false);
+    assert.equal(profiles.iphone.packedShadowDepth, false);
     assert.equal(profiles.uniformBones.uniformBones, true);
     assert.equal(profiles.receiverPrograms.uniformBones, false);
     assert.equal(profiles.androidDefault.uniformBones, false);
@@ -109,6 +114,8 @@ async function main() {
     assert.equal(new URL(await hub.locator('#areaShadows').getAttribute('href'), base).searchParams.get('worldprobe'), 'areas');
     assert.equal(new URL(await hub.locator('#receiverShadows').getAttribute('href'), base).searchParams.get('shadowcode'), 'receivers');
     assert.equal(new URL(await hub.locator('#boneShadows').getAttribute('href'), base).searchParams.get('bones'), 'uniform');
+    assert.equal(new URL(await hub.locator('#packedShadows').getAttribute('href'), base).searchParams.get('shadowstorage'), 'rgba');
+    await hub.getByLabel('Colour shadow map test result').selectOption('Worked');
     await hub.getByLabel('Uniform bone shadow test result').selectOption('Worked');
     await hub.getByLabel('Receiver shader test result').selectOption('Worked');
     assert.equal(new URL(await hub.locator('#next').getAttribute('href')).searchParams.get('restore'), 'scenery');
@@ -117,6 +124,7 @@ async function main() {
     assert.equal(await hub.getByLabel('Full detail without shadow maps result').inputValue(), 'Worked');
     assert.equal(await hub.getByLabel('Receiver shader test result').inputValue(), 'Worked');
     assert.equal(await hub.getByLabel('Uniform bone shadow test result').inputValue(), 'Worked');
+    assert.equal(await hub.getByLabel('Colour shadow map test result').inputValue(), 'Worked');
     assert.equal(await hub.evaluate(() => localStorage.getItem('dawsons-discovery-world-3d-v1')), saved);
     await hub.locator('#copy').click();
     assert.match(await hub.locator('#summary').innerText(), /Sharper picture: Worked/);
@@ -161,13 +169,13 @@ async function main() {
     await fallback.close();
     console.log('PASS default Android canvas fallback without weakening explicit trials');
 
-    const cases = ['baseline', ...KEYS, 'full-no-shadows', 'android-default', 'full-basic-shadows', 'full-basic-preflight', 'full-basic-world', 'full-basic-areas', 'full-basic-receivers', 'full-basic-bones'];
+    const cases = ['baseline', ...KEYS, 'full-no-shadows', 'android-default', 'full-basic-shadows', 'full-basic-preflight', 'full-basic-world', 'full-basic-areas', 'full-basic-receivers', 'full-basic-bones', 'full-basic-packed'];
     const selected = process.env.GRAPHICS_CASES ? process.env.GRAPHICS_CASES.split(',') : cases;
     assert(selected.length && selected.every(k => cases.includes(k)), 'valid requested game scenarios');
     for (const key of cases.filter(k => selected.includes(k))) {
       const basicCase = key.startsWith('full-basic-');
-      const areaCase = key === 'full-basic-areas' || key === 'full-basic-receivers' || key === 'full-basic-bones';
-      const ctx = await browser.newContext({ userAgent: PIXEL, viewport: ['full-basic-receivers','full-basic-bones'].includes(key) ? { width: 443, height: 816 } : key === 'full-basic-areas' ? { width: 390, height: 844 } : { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+      const areaCase = key === 'full-basic-areas' || key === 'full-basic-receivers' || key === 'full-basic-bones' || key === 'full-basic-packed';
+      const ctx = await browser.newContext({ userAgent: PIXEL, viewport: ['full-basic-receivers','full-basic-bones','full-basic-packed'].includes(key) ? { width: 443, height: 816 } : key === 'full-basic-areas' ? { width: 390, height: 844 } : { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
       const page = await ctx.newPage(), errors = [];
       page.on('pageerror', e => errors.push(e.message));
       await page.addInitScript(() => {
@@ -210,7 +218,7 @@ async function main() {
       });
       const query = new URLSearchParams({ graphics: 'safe', trial: '1' });
       if (key === 'android-default') { query.delete('graphics'); query.delete('trial'); }
-      else if (basicCase) { query.set('graphics', 'full-basic-shadows'); if (key !== 'full-basic-shadows') query.set('preflight', '1'); if (key === 'full-basic-world') query.set('worldprobe', '1'); if (areaCase) query.set('worldprobe', 'areas'); if (['full-basic-receivers','full-basic-bones'].includes(key)) query.set('shadowcode', 'receivers'); if (key === 'full-basic-bones') query.set('bones', 'uniform'); }
+      else if (basicCase) { query.set('graphics', 'full-basic-shadows'); if (key !== 'full-basic-shadows') query.set('preflight', '1'); if (key === 'full-basic-world') query.set('worldprobe', '1'); if (areaCase) query.set('worldprobe', 'areas'); if (['full-basic-receivers','full-basic-bones','full-basic-packed'].includes(key)) query.set('shadowcode', 'receivers'); if (['full-basic-bones','full-basic-packed'].includes(key)) query.set('bones', 'uniform'); if(key === 'full-basic-packed') query.set('shadowstorage', 'rgba'); }
       else if (key === 'full-no-shadows') query.set('graphics', key);
       else if (key !== 'baseline') query.set('restore', key);
       const start = Date.now();
@@ -252,7 +260,7 @@ async function main() {
         const basic = await page.evaluate(() => {
           const D = __DDW3, maps = [], types = [], gl = D.renderer.getContext();
           D.G.scene.traverse(o => { if (o.isLight && o.castShadow && o.shadow?.map) {
-            const m = o.shadow.map; maps.push({ width: m.width, height: m.height, compare: m.depthTexture.compareFunction, min: m.depthTexture.minFilter });
+            const m = o.shadow.map; maps.push({ width: m.width, height: m.height, compare: m.depthTexture?.compareFunction ?? null, min: (m.depthTexture || m.texture).minFilter, nativeDepth: !!m.depthTexture, rgba: m.texture.format === D.THREE.RGBAFormat, byte: m.texture.type === D.THREE.UnsignedByteType, depthBuffer: m.depthBuffer });
           } });
           for (const p of D.renderer.info.programs) {
             const n = gl.getProgramParameter(p.program, gl.ACTIVE_UNIFORMS);
@@ -260,6 +268,8 @@ async function main() {
           }
           return { mode: D.renderer.shadowMap.type === D.THREE.BasicShadowMap, maps, types, sampler: gl.SAMPLER_2D, nearest: D.THREE.NearestFilter };
         });
+        if(key === 'full-basic-packed') assert(basic.maps.every(m => !m.nativeDepth && m.rgba && m.byte && m.depthBuffer));
+        else assert(basic.maps.every(m=>m.nativeDepth));
         assert.equal(basic.mode, true); assert(basic.maps.length > 0);
         assert(basic.maps.every(m => m.width === 1536 && m.height === 1536 && m.compare === null && m.min === basic.nearest), 'change sampling method, not resolution');
         assert(basic.types.length > 0 && basic.types.every(t => t === basic.sampler), 'compiled shaders use plain depth samplers, not hardware comparison samplers');
@@ -311,7 +321,7 @@ async function main() {
             });
             assert(compiled.off.length > 0 && compiled.off.every(ns => ns.every(n => !/ShadowMap/.test(n))));
             assert(compiled.on.some(ns => ns.some(n => /directionalShadowMap/.test(n))));
-            if (key === 'full-basic-bones') { assert(compiled.bones.length > 0); assert(compiled.bones.every(ns => ns.some(n => n === 'boneMatrices[0]') && !ns.includes('boneTexture'))); console.log('PASS actual game uniform skinning programs:', JSON.stringify({programs:compiled.bones.length, rigCounts:compiled.rigCounts})); }
+            if (['full-basic-bones','full-basic-packed'].includes(key)) { assert(compiled.bones.length > 0); assert(compiled.bones.every(ns => ns.some(n => n === 'boneMatrices[0]') && !ns.includes('boneTexture'))); console.log('PASS actual game uniform skinning programs:', JSON.stringify({programs:compiled.bones.length, rigCounts:compiled.rigCounts})); }
             console.log('PASS actual compiled programs: no shadow samplers for nonreceivers; real receivers retain them', JSON.stringify({off:compiled.off.length,on:compiled.on.length}));
           }
           console.log('PASS portrait area checks:', JSON.stringify(views));
@@ -324,7 +334,7 @@ async function main() {
           await page.locator('#copyGraphicsReport').waitFor();
           await page.locator('#copyGraphicsReport').click();
           const report = JSON.parse(await page.locator('#graphicsReport').innerText());
-          assert.equal(report.build, 47); assert.equal(report.contextLost, true);
+          assert.equal(report.build, 48); assert.equal(report.contextLost, true);
           assert.equal(report.profile.shadowType, 'basic'); assert(report.lastSubmittedStage);
           console.log('PASS game context-loss report');
         }

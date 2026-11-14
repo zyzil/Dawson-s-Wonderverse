@@ -22,6 +22,7 @@ async function main() {
       const start = Date.now();
       const query = new URLSearchParams({ graphics: 'full-basic-shadows' });
       if (process.env.SHADOW_CODE === 'receivers') query.set('shadowcode', 'receivers');
+      if (process.env.SHADOW_STORAGE === 'rgba') query.set('shadowstorage', 'rgba');
       if (process.env.BONES === 'uniform') query.set('bones', 'uniform');
       await page.goto('http://127.0.0.1:' + server.address().port + '/' + i + '?' + query, { timeout: 180000 });
       await page.waitForFunction(() => window.__DDW3 && document.getElementById('loading').classList.contains('done'), null, { timeout: 180000 });

@@ -4,14 +4,13 @@ Prioritized unfinished work, highest first. Take the top item that can be done w
 remove it here and record it in `DEVELOPMENT_LOG.md`. Add new findings (bugs, ideas, measurements that look wrong) as you go.
 
 ## Waiting for the user
-- **Pixel 10 Pro XL uniform bone shadow trial:** build 46 passed all casting,
-  nonreceiver surfaces, physical and instanced receivers, then reset at skinned
-  body receiving. Run build 47 Basic/preflight/area checks with
-  `shadowcode=receivers&bones=uniform`: uniform matrix palettes avoid bone
-  texture sampling while preserving GPU animation, fur and character shadows.
-  Copy the failure report if it resets. This is an unconfirmed workaround;
-  zero-draw groups and exact driver cause remain unproved. Retain the verified
-  shadow-free Android default until the phone confirms a working shadow path.
+- **Pixel 10 Pro XL colour shadow trial:** build 47 completed four views and
+  nine local batches, then reset at castle instanced receiving. Build 48 adds
+  `shadowstorage=rgba` to Basic/receiver/uniform-bone area checks, avoiding native
+  shadow depth-texture sampling while keeping GPU instancing and real shadows.
+  Copy a failure report if it resets; reports now identify shadow storage and
+  instanced receiver geometry/counts. Exact driver cause and zero-draw groups
+  remain unproved. Retain the shadow-free Android default until phone confirmation.
 - **Longer Pixel play session:** full detail without shadow maps is physically
   confirmed working and is now the normal Android profile. Check a longer play
   session and offline reopening when convenient. The precise failing GPU
@@ -21,6 +20,11 @@ remove it here and record it in `DEVELOPMENT_LOG.md`. Add new findings (bugs, id
 - **Confirm the squish fix (build 34b)** on the iPhone Home Screen app after turning the phone.
 
 ## 1. Performance first (the game must not get slower)
+- **Packed-shadow candidate:** after physical compatibility is confirmed, take
+  longer Pixel timings and optimize before default promotion. Controlled short
+  software samples show +4.8% creatures, +3.7% castle and +8.1% house; other
+  views/live samples improve and baseline samples vary. Report both outcomes;
+  no steady or physical speed result is established. Keep the candidate opt-in.
 - **Uniform bone candidate:** longer controlled throughput samples before default
   promotion. Short software samples show +4.0% house and +1.9% rooms, within
   baseline sample spread; the other three views are faster. No steady result or

@@ -38,7 +38,8 @@ export function getGraphicsProfile(search = location.search, ua = navigator.user
   const worldShadowCheckAreas = worldShadowCheck && params.get('worldprobe') === 'areas';
   const receiverShadowPrograms = flags.shadows && shadowType === 'basic' && params.get('shadowcode') === 'receivers';
   const uniformBones = receiverShadowPrograms && params.get('bones') === 'uniform';
-  return Object.freeze({ safe, restored: Object.freeze(restored), shadowType, localShadowWarmup, shadowPreflight, worldShadowCheck, worldShadowCheckAreas, receiverShadowPrograms, uniformBones, ...flags });
+  const packedShadowDepth = receiverShadowPrograms && params.get('shadowstorage') === 'rgba';
+  return Object.freeze({ safe, restored: Object.freeze(restored), shadowType, localShadowWarmup, shadowPreflight, worldShadowCheck, worldShadowCheckAreas, receiverShadowPrograms, uniformBones, packedShadowDepth, ...flags });
 }
 
 export const GRAPHICS = getGraphicsProfile();

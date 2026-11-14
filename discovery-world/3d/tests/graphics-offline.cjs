@@ -60,10 +60,10 @@ async function main() {
     await page.goto(base + '/graphics-tests.html?build=37');
     await page.locator('[data-feature="power"]').waitFor();
     assert.equal(await page.locator('.check').count(), 7, 'offline checks and profile module are available');
-    const trial = await page.locator('#boneShadows').getAttribute('href');
+    const trial = await page.locator('#packedShadows').getAttribute('href');
     assert.equal(new URL(trial, base).searchParams.get('bones'), 'uniform');
-    const profile = await page.evaluate(async trial => (await import('./src/graphics.js?build=47')).getGraphicsProfile(new URL(trial,location.href).search,'Android'), trial);
-    assert(profile.uniformBones && profile.receiverShadowPrograms && profile.shadows);
+    const profile = await page.evaluate(async trial => (await import('./src/graphics.js?build=48')).getGraphicsProfile(new URL(trial,location.href).search,'Android'), trial);
+    assert(profile.uniformBones && profile.receiverShadowPrograms && profile.shadows && profile.packedShadowDepth);
     await page.goto(new URL(trial, base).href);
     assert.equal(await page.locator('h1').innerText(), 'Offline game fixture', 'new trial query retains the offline game');
     await page.goto(base + '/shadow-check.html?size=1536&method=basic&build=41');

@@ -3,6 +3,7 @@
 // Never edit node_modules. Exact matches/version checks fail closed on upgrades.
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { adaptPackedShadowPrograms } from './packed-shadow-programs.mjs';
 
 export function receiverShadowPrograms() {
   let patched = 0;
@@ -85,6 +86,7 @@ function WebGLPrograms( renderer, environments, extensions, capabilities, bindin
               ( _this.shadowMap.enabled && currentRenderState.state.shadowsArray.length > 0 && object.receiveShadow === true ) ) ) {
             needsProgramChange = true;
           } else if ( materialProperties.needsLights && ( materialProperties.lightsStateVersion !== lights.state.version ) ) {`);
+        source = adaptPackedShadowPrograms(source, replaceOnce);
         patched++;
         return { contents: source, loader: 'js', resolveDir: root };
       });

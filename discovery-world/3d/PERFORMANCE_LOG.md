@@ -4,6 +4,70 @@ Rule: the game must never get slower. Measure before and after every change on i
 **Desktop numbers come from a software-rendered browser and are NOT iPhone numbers.** Only the in-game report from the
 real iPhone (⚙️ → Performance Test → Copy Test Results) counts as an iPhone measurement.
 
+## Build 48 RGBA-packed shadow depth trial
+
+- Physical build 47 completed four 13-probe views (spawn, both underground,
+  sky) and nine local warmup batches. It then reset at castle (406,0) instanced
+  receiving, one receiver/feature draw, after eight completed castle probes.
+  Zero texture-bone draws; the castle had one uniform-bone character draw.
+  Several previously failing stages now completed, but failures have
+  moved between runs and zero-draw groups remain unproved. No root cause claim.
+- Opt-in `shadowstorage=rgba` keeps Basic/receiver/uniform-bone mode and writes
+  classic packed depth into an RGBA8 nearest-filter colour texture, with a
+  24-bit depth renderbuffer for visibility testing. Receivers decode that colour
+  map; no native shadow depth texture exists or is sampled. Geometry, instancing,
+  GPU animation, normals, fur, real casts/receives, 1536 size, AA and post stay.
+  Guarded mode/map/program invalidation preserves native rendering defaults.
+- Real-renderer pixel/sampler proof: **121** draw observations including shared
+  physical materials, coloured instancing, animated skins, real fur and cutouts.
+  Packed and native shadows have **maximum channel difference 0**; animation
+  changes **371 channels**. Fresh packed startup and rollback work. FBO complete,
+  actual depth attachment is a renderbuffer, no depth texture, packed colour data
+  exists, and actual shadow sampler binding is the colour texture. GL error **0**.
+- Full game at the reported aspect **0.5428921568627451** (443×816, scale 2):
+  all **78 probes** across six views complete and restore state with GL error 0.
+  Preflight uses the actual 1536 RGBA8 map without a depth texture on the canvas
+  and in the unchanged HDR/MSAA/depth startup target. Eleven local passes and
+  sixteen batches complete. Original graphics flags, GPU instancing, uniform
+  skinning and plain sampler2D/nearest shadows remain enabled; the screenshot
+  visibly shows the character's shadow. Observed 22 nonreceiver programs omit
+  shadow samplers; receivers retain them. Diagnostic startup: **78.1 s**;
+  ordinary Android with the candidate off: **50.5 s** in this run.
+- Six preflight combinations (native/packed, light/full target, injected loss)
+  retain maps and restore scene/render state. Packed multi-view success/loss
+  probes restore flags/callbacks and history. Native receiver variants (54 draws)
+  and uniform-bone variants (99 draws) still render identical pixels. Copied
+  reports, profiles, strict requests, portraits, saves, persistent hub results,
+  offline packed-trial navigation and legacy helper migration pass.
+- Before/after HTML, full Basic with uniform bones, no extra diagnostics:
+  startup **80.4 / 52.3 s**. All five first-entry views add **zero new programs**,
+  and sampled call/triangle counts match. Three-frame old/new wall times (ms):
+  park **3816/3723**, creatures **8101/7626**, castle **8131/8079**,
+  house **6496/6398**, castle rooms **3152/2950**. These short samples are not a
+  steady-throughput or phone speed claim. The frozen-world native/packed
+  comparison checks matching shadow work separately:
+
+  | View | Native depth (ms) | RGBA packed (ms) | Difference |
+  | --- | ---: | ---: | ---: |
+  | Park | 4904 | 4654 | -5.1% |
+  | Creatures | 5740 | 6018 | +4.8% |
+  | Castle | 3908 | 4051 | +3.7% |
+  | House | 1990 | 2150 | +8.1% |
+  | Castle rooms | 2141 | 1988 | -7.1% |
+
+  These are means of two GPU-completed samples per mode in ABBA order, with
+  one frozen and one updating shadow frame per sample. Simulation is paused,
+  map reallocations and variant warmup happen outside timing, and all four
+  samples in each view have identical calls/triangles, zero new programs and
+  GL error 0. The extra packing/decoding may have a cost: positive means in
+  three views need longer measurement and optimization before promotion. Other
+  views and the live before/after sample run faster, and native samples vary
+  substantially (e.g. 6290/5191 ms at creatures). Do not claim steady speedup or
+  dismiss the increases. Keep this optional while checking physical compatibility.
+- Desktop software results do not establish Pixel/iPhone compatibility or
+  speed. Physical confirmation, longer timing and the full gameplay suite
+  remain pending; keep the physical working Android default and draft.
+
 ## Build 47 uniform bone palettes with real character shadows
 
 - New physical evidence from build 46: all casting checks, nonreceiver surfaces,

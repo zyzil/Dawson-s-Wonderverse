@@ -4,6 +4,18 @@ This is the full rebuild of Dawson's Discovery World in real 3D. It is a **separ
 
 Play: open `index.html`. It is one self-contained file and works offline. Once merged, it is also on GitHub Pages at `…/discovery-world/3d/`.
 
+## Build 48: colour-packed shadow map trial
+
+Build 47 completed the starting view, both underground views and sky checks on
+the Pixel, then reset during castle instanced-scenery receiving. Instanced receiving
+also completed earlier, so this does not establish a single unsupported mesh type.
+
+The next opt-in mode adds `shadowstorage=rgba` to the Basic/receiver/uniform-bone
+trial. It stores shadow depth in an RGBA8 colour texture, using a 24-bit depth
+renderbuffer for depth testing. No native shadow depth texture is sampled.
+Instancing, GPU animation, real shadows, fur, map size, AA and effects remain.
+Use [graphics checks](graphics-tests.html?build=48); phone confirmation is pending.
+
 ## Build 47: uniform bone palettes for the shadow trial
 
 The physical build 46 run passed shadow casting, nonreceiving surfaces,

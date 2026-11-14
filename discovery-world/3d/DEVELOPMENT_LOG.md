@@ -4,6 +4,42 @@ Completed changes and how each was tested, newest first. Each checkpoint says wh
 browser vs. a real iPhone). The routine and rules are in `CLAUDE.md`; unfinished work is in `NEXT_TASKS.md`; measurements
 are in `PERFORMANCE_LOG.md`.
 
+## Checkpoint: build 48 classic colour-packed Basic shadow candidate
+- **New phone result:** build 47 completed all 13 probes at spawn, both
+  underground views and the sky view (four complete views), with nine local
+  warmup batches. At (406,0) castle, eight probes completed before instanced
+  scenery receiving reset: one receiving/feature draw, zero shadow updates,
+  one uniform-bone character draw, zero bone-texture draws. The castle's depth,
+  nonreceiving, standard, physical and custom checks passed. Earlier groups
+  with zero actual draws remain unproved; this is not a definitive driver cause.
+- Add opt-in `shadowstorage=rgba` for the Basic receiver-shader mode, retaining
+  `bones=uniform` in its phone link. The guarded r187 adapter allocates an RGBA8
+  nearest-filter shadow target with a 24-bit depth renderbuffer and no depth
+  texture. Built-in MeshDepthMaterial uses RGBADepthPacking, including its
+  cutout/displacement variants. Receiving shaders decode r187's packed component
+  order before the original Basic depth comparison. WebGLLights already binds
+  the colour texture when no depth texture exists. Keep original geometry,
+  GPU instancing, bone uniforms, materials, casts/receives and 1536 map size.
+- Packed/native mode changes reallocate maps, invalidate/reselect cached shader
+  variants and select separate depth materials. Rig caches still work. Native
+  modes keep their original depth texture and shader branch. Unsupported point
+  shadow lights, non-Basic maps or custom depth materials stop explicitly in
+  this opt-in mode; the game uses the supported directional built-in path.
+  No dependency files are edited. Preserve previous HTML in
+  `../backups/3D_build48_index.html`.
+- Preflight reports identify actual shadow storage; world probes count packed
+  feature draws and include up to three instanced receiver descriptors, using
+  CPU metadata only. Existing report/history, save and offline keys survive.
+  Keep Android's verified shadow-free and iPhone's original defaults.
+- Focused shader/pixel proof: 121 draws across physical/shared materials,
+  coloured instancing, animated 1/3-bone skins, actual fur and cutout casters,
+  including fresh packed initialization and native/packed rollback. Maximum
+  channel difference 0; animation changes 371 channels. Actual sampler binding
+  points to the colour map in packed mode; the framebuffer has a depth
+  renderbuffer, no depth texture and nonuniform encoded colour depth. GL error 0.
+- Full-game, cleanup and timing results are in PERFORMANCE_LOG.md. Physical
+  compatibility and the full gameplay suite remain pending; keep the fork PR draft.
+
 ## Checkpoint: build 47 uniform bone palette shadow candidate
 - **Physical evidence:** build 46 completed all casting, the nonreceiver surface
   check, physical receivers (19 draws) and instanced receivers (1 draw), then

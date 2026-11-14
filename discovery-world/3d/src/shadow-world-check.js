@@ -24,6 +24,7 @@ export async function checkWorldShadows({ renderer, scene, camera, sun, target, 
   const check = report.worldShadowCheck = { view: location, probes: [], complete: false, stateRestored: false };
   const receiverOnly = renderer.shadowMap.receiverOnly === true;
   check.receiverOnlyPrograms = receiverOnly;
+  check.shadowStorage = renderer.shadowMap.packedDepth === true ? 'rgba-packed' : 'native-depth';
   const history = { view: location, complete: false, completedProbes: 0, stateRestored: false };
   (report.worldShadowChecks ||= []).push(history);
   const objects = new Map(), lights = new Map();
@@ -49,7 +50,15 @@ export async function checkWorldShadows({ renderer, scene, camera, sun, target, 
         // Metadata for the selected program; no extra GPU queries per draw.
         if (activeProbe) {
           const props = renderer.properties.get(args[4]);
-          if (props.surfaceShadowEnabled === true) activeProbe.shadowFeatureDraws++;
+          if (props.surfaceShadowEnabled === true) {
+            activeProbe.shadowFeatureDraws++;
+            if (renderer.shadowMap.packedDepth === true && props.packedShadowDepth === true) activeProbe.packedShadowDraws++;
+          }
+          if (this.receiveShadow && this.isInstancedMesh && activeProbe.instancedReceivers.length < 3) {
+            activeProbe.instancedReceivers.push({ name: this.name, geometry: this.geometry.type,
+              instances: this.count, instanceColor: !!this.instanceColor, morphTexture: !!this.morphTexture,
+              material: args[4].type, verticesPerInstance: this.geometry.attributes.position.count });
+          }
           if (renderer.uniformBones === true && this.isSkinnedMesh) {
             if (props.uniformBoneCount > 0) activeProbe.uniformBoneDraws++;
             else activeProbe.textureBoneDraws++;
@@ -80,8 +89,9 @@ export async function checkWorldShadows({ renderer, scene, camera, sun, target, 
         o.receiveShadow = saved.receive && (allReceivers || receiverGroup(o) === receiveGroup);
         if (o.castShadow) enabledCasters++; if (o.receiveShadow) enabledReceivers++;
       }
-      const probe = { name, completed: false, depthOnly, update, enabledCasters, enabledReceivers, shadowDraws: 0, receiverDraws: 0 };
+      const probe = { name, completed: false, depthOnly, update, enabledCasters, enabledReceivers, shadowDraws: 0, receiverDraws: 0, instancedReceivers: [] };
       if (receiverOnly) probe.shadowFeatureDraws = 0;
+      if (renderer.shadowMap.packedDepth === true) probe.packedShadowDraws = 0;
       if (renderer.uniformBones === true) Object.assign(probe, { uniformBoneDraws: 0, textureBoneDraws: 0, maxRigBones: 0 });
       check.probes.push(probe); activeProbe = probe;
       history.lastProbe = name;

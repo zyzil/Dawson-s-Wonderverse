@@ -32,7 +32,10 @@ export async function primeShadowMap({ renderer, sun, full, report, step }) {
       probe.completed = true;
       probe.glError = renderer.getContext().getError();
       probe.mapSize = [sun.shadow.map.width, sun.shadow.map.height];
-      probe.depthCompare = sun.shadow.map.depthTexture.compareFunction;
+      probe.depthCompare = sun.shadow.map.depthTexture?.compareFunction ?? null;
+      probe.shadowStorage = sun.shadow.map.depthTexture ? 'native-depth' : 'rgba-packed';
+      probe.depthTexture = !!sun.shadow.map.depthTexture;
+      probe.colorFormat = sun.shadow.map.texture.format;
       if (probe.glError) throw new Error('Shadow preflight WebGL error ' + probe.glError);
     }
     check.mapRetained = true;

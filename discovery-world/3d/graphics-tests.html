@@ -12,12 +12,18 @@
 <body><main>
 <h1>Restore graphics one at a time</h1>
 <p>Each check starts with the working lighter settings and adds <b>one feature</b>. Play briefly, then use “Graphics checks” at the top of the game to return and record the result.</p>
-<aside><b>Next: shadows with uniform character animation (build 47)</b>
+<aside><b>Next: colour-encoded shadow maps (build 48)</b>
+<p>The uniform-bone trial completed the starting view, both underground views and sky checks. It reset at castle scenery while receiving shadows. Instanced receiving worked in earlier views, so the precise driver cause is still unconfirmed.</p>
+<p>This trial stores shadow depth in an ordinary RGBA colour texture, with a depth renderbuffer used only for depth testing. It avoids native depth-texture sampling while keeping instancing, uniform-bone animation, real shadows, fur, full detail, 1536 map size and antialiasing.</p>
+<p><a id="packedShadows" class="primary" href="./?graphics=full-basic-shadows&amp;preflight=1&amp;worldprobe=areas&amp;shadowcode=receivers&amp;bones=uniform&amp;shadowstorage=rgba&amp;trial=1&amp;build=48">Try colour shadow maps</a></p>
+<label>Result: <select id="packedShadowResult" aria-label="Colour shadow map test result"></select></label>
+<p>This is an unconfirmed phone workaround. If it resets, use “Copy graphics report”.</p></aside>
+<details open><summary>Previous uniform bone trial: castle scenery reset</summary>
 <p>Build 46 passed casting, physical surfaces and instanced scenery. It reset when a skinned character body received shadows. Groups with zero actual draws remain unproved.</p>
-<p>This trial keeps GPU animation, fur, real character shadows, full detail and antialiasing. It sends the small skeletons' bone matrices as shader values instead of a bone texture, avoiding that texture alongside shadow sampling. The phone fix is unconfirmed.</p>
+<p>Build 47 completed four world views, then reset at the castle instanced-scenery receiving check. It keeps GPU animation, fur, real character shadows, full detail and antialiasing. It sends the small skeletons' bone matrices as shader values instead of a bone texture, avoiding that texture alongside shadow sampling. The phone fix is unconfirmed.</p>
 <p><a id="boneShadows" class="primary" href="./?graphics=full-basic-shadows&amp;preflight=1&amp;worldprobe=areas&amp;shadowcode=receivers&amp;bones=uniform&amp;trial=1&amp;build=47">Try shadows with uniform bones</a></p>
 <label>Result: <select id="boneShadowResult" aria-label="Uniform bone shadow test result"></select></label>
-<p>If it resets, use “Copy graphics report”.</p></aside>
+<p>If it resets, use “Copy graphics report”.</p></details>
 <details open><summary>Previous receiver shader trial: reset on skinned bodies</summary>
 <p>Removing shadow code from nonreceivers let that surface check complete. Physical surfaces and instanced scenery also passed; the next skinned-body receiving draw reset. The precise driver cause remains unknown.</p>
 <p><a id="receiverShadows" class="primary" href="./?graphics=full-basic-shadows&amp;preflight=1&amp;worldprobe=areas&amp;shadowcode=receivers&amp;trial=1&amp;build=46">Compare texture bone animation</a></p>
@@ -71,13 +77,13 @@
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
 </script>
 <script type="module">
-import { GRAPHICS_TRIALS } from './src/graphics.js?build=47';
+import { GRAPHICS_TRIALS } from './src/graphics.js?build=48';
 const KEY = 'ddw3-graphics-checks-v1', PENDING = 'ddw3-graphics-check-pending';
 const states = ['Not tested', 'Worked', 'Slow', 'Failed'];
 let results = {}, pending = '';
 try { results = JSON.parse(localStorage.getItem(KEY) || '{}'); pending = sessionStorage.getItem(PENDING) || ''; } catch {}
 if (!results || typeof results !== 'object' || Array.isArray(results)) results = {};
-results = Object.fromEntries([...GRAPHICS_TRIALS.map(t => t.key), 'full-no-shadows', 'full-basic-shadows', 'full-basic-local', 'full-basic-preflight', 'full-basic-world', 'full-basic-areas', 'full-basic-receivers', 'full-basic-bones'].map(key => [key, states.includes(results[key]) ? results[key] : 'Not tested']));
+results = Object.fromEntries([...GRAPHICS_TRIALS.map(t => t.key), 'full-no-shadows', 'full-basic-shadows', 'full-basic-local', 'full-basic-preflight', 'full-basic-world', 'full-basic-areas', 'full-basic-receivers', 'full-basic-bones', 'full-basic-packed'].map(key => [key, states.includes(results[key]) ? results[key] : 'Not tested']));
 function url(key) {
   const u = new URL('./', location.href);
   u.search = new URLSearchParams({ graphics: 'safe', restore: key, trial: '1', build: '38' });
@@ -97,6 +103,11 @@ document.getElementById('worldShadows').onclick = () => start('full-basic-world'
 document.getElementById('areaShadows').onclick = () => start('full-basic-areas');
 document.getElementById('receiverShadows').onclick = () => start('full-basic-receivers');
 document.getElementById('boneShadows').onclick = () => start('full-basic-bones');
+document.getElementById('packedShadows').onclick = () => start('full-basic-packed');
+const packed = document.getElementById('packedShadowResult');
+for (const state of states) { const o = document.createElement('option'); o.value = o.textContent = state; packed.appendChild(o); }
+packed.value = results['full-basic-packed'];
+packed.onchange = () => { results['full-basic-packed'] = packed.value; try { localStorage.setItem(KEY, JSON.stringify(results)); } catch {} };
 const bones = document.getElementById('boneShadowResult');
 for (const state of states) { const o = document.createElement('option'); o.value = o.textContent = state; bones.appendChild(o); }
 bones.value = results['full-basic-bones'];
@@ -150,7 +161,7 @@ for (const [i, t] of GRAPHICS_TRIALS.entries()) {
 }
 updateNext();
 document.getElementById('copy').onclick = async () => {
-  const text = 'Graphics checks — build 47\nLatest Pixel result: casting, physical surfaces and instanced scenery passed; skinned body receiving reset.\nUniform bone shadows: ' + results['full-basic-bones'] + '\nReceiver shader programs: ' + results['full-basic-receivers'] + '\nArea shadow checks: ' + results['full-basic-areas'] + '\nStarting-view shadow checks: ' + results['full-basic-world'] + '\nCanvas-first Basic shadows: ' + results['full-basic-preflight'] + '\nBasic shadows with local startup: ' + results['full-basic-local'] + '\nBasic shadows with original startup: ' + results['full-basic-shadows'] + '\nFull detail without shadow maps: ' + results['full-no-shadows'] + '\n' + GRAPHICS_TRIALS.map(t => t.label + ': ' + results[t.key]).join('\n') + '\nBrowser: ' + navigator.userAgent;
+  const text = 'Graphics checks — build 48\nLatest Pixel result: four views passed; castle instanced-scenery receiving reset.\nColour shadow maps: ' + results['full-basic-packed'] + '\nUniform bone shadows: ' + results['full-basic-bones'] + '\nReceiver shader programs: ' + results['full-basic-receivers'] + '\nArea shadow checks: ' + results['full-basic-areas'] + '\nStarting-view shadow checks: ' + results['full-basic-world'] + '\nCanvas-first Basic shadows: ' + results['full-basic-preflight'] + '\nBasic shadows with local startup: ' + results['full-basic-local'] + '\nBasic shadows with original startup: ' + results['full-basic-shadows'] + '\nFull detail without shadow maps: ' + results['full-no-shadows'] + '\n' + GRAPHICS_TRIALS.map(t => t.label + ': ' + results[t.key]).join('\n') + '\nBrowser: ' + navigator.userAgent;
   const pre = document.getElementById('summary'); pre.textContent = text; pre.hidden = false;
   try { await navigator.clipboard.writeText(text); document.getElementById('notice').textContent = 'Copied. Paste the results into the chat.'; }
   catch { document.getElementById('notice').textContent = 'Copy the results shown below.'; }

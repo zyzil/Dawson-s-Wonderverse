@@ -8,7 +8,7 @@ async function main() {
     import { checkWorldShadows } from './src/shadow-world-check.js';
     window.run = async lose => {
       const r = new THREE.WebGLRenderer(); r.setSize(96,64); r.info.autoReset=false;
-      r.shadowMap.enabled=true; r.shadowMap.type=THREE.BasicShadowMap; r.shadowMap.receiverOnly=true; r.uniformBones=true;
+      r.shadowMap.enabled=true; r.shadowMap.type=THREE.BasicShadowMap; r.shadowMap.packedDepth=true; r.shadowMap.receiverOnly=true; r.uniformBones=true;
       const scene=new THREE.Scene(), camera=new THREE.PerspectiveCamera(45,1.5,.1,30);
       camera.position.set(4,6,7); camera.lookAt(0,.3,0);
       const sun=new THREE.DirectionalLight('white',2); sun.position.set(-3,7,4); sun.castShadow=true;
@@ -64,6 +64,8 @@ async function main() {
       assert.equal(check.probes.find(p=>p.name==='surfaces: shadow receiving off').receiverDraws,0);
       assert.equal(check.probes.find(p=>p.name==='surfaces: shadow receiving off').shadowFeatureDraws,0);
       assert.equal(check.receiverOnlyPrograms,true);
+      assert.equal(check.shadowStorage,'rgba-packed');
+      assert(check.probes.every(p=>p.shadowFeatureDraws===p.packedShadowDraws));
       assert(check.probes.every(p=>p.textureBoneDraws===0));
       assert(check.probes.some(p=>p.name==='receive: skinned bodies'&&p.uniformBoneDraws>0&&p.maxRigBones>0));
       if(lose){assert.match(out.error,/context lost/i);assert(!check.complete);assert.equal(check.probes.at(-1).completed,false);}
