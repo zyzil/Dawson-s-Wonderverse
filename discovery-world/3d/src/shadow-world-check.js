@@ -17,8 +17,8 @@ function receiverGroup(o) {
 // Diagnostic only. Shadow-camera layer 1 already makes depth casting independent
 // of the main camera in r187. Use an unused main-camera layer to submit genuine
 // world shadow casters with NO world color draws, then test the original surface
-// shaders with the depth map frozen. Never change light.castShadow or shader
-// defines: receiveShadow is a runtime uniform, not a replacement material.
+// shaders with the depth map frozen. Keep original materials and light casting
+// flags. In receiver-only mode the renderer selects the matching compiled variant.
 export async function checkWorldShadows({ renderer, scene, camera, sun, target, report, step, view }) {
   const location = view ? { ...view, aspect: camera.aspect } : { cameraPosition: camera.position.toArray(), aspect: camera.aspect };
   const check = report.worldShadowCheck = { view: location, probes: [], complete: false, stateRestored: false };
@@ -47,7 +47,15 @@ export async function checkWorldShadows({ renderer, scene, camera, sun, target, 
       };
       if (receiverOnly) o.onAfterRender = function (...args) {
         // Metadata for the selected program; no extra GPU queries per draw.
-        if (activeProbe && renderer.properties.get(args[4]).surfaceShadowEnabled === true) activeProbe.shadowFeatureDraws++;
+        if (activeProbe) {
+          const props = renderer.properties.get(args[4]);
+          if (props.surfaceShadowEnabled === true) activeProbe.shadowFeatureDraws++;
+          if (renderer.uniformBones === true && this.isSkinnedMesh) {
+            if (props.uniformBoneCount > 0) activeProbe.uniformBoneDraws++;
+            else activeProbe.textureBoneDraws++;
+            activeProbe.maxRigBones = Math.max(activeProbe.maxRigBones, this.skeleton.bones.length);
+          }
+        }
         return saved.afterRender.apply(this, args);
       };
     });
@@ -74,6 +82,7 @@ export async function checkWorldShadows({ renderer, scene, camera, sun, target, 
       }
       const probe = { name, completed: false, depthOnly, update, enabledCasters, enabledReceivers, shadowDraws: 0, receiverDraws: 0 };
       if (receiverOnly) probe.shadowFeatureDraws = 0;
+      if (renderer.uniformBones === true) Object.assign(probe, { uniformBoneDraws: 0, textureBoneDraws: 0, maxRigBones: 0 });
       check.probes.push(probe); activeProbe = probe;
       history.lastProbe = name;
       step('World shadow check' + (view ? ` [${view.x}, ${view.y}]` : '') + ': ' + name);

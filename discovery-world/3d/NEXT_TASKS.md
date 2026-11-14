@@ -4,14 +4,14 @@ Prioritized unfinished work, highest first. Take the top item that can be done w
 remove it here and record it in `DEVELOPMENT_LOG.md`. Add new findings (bugs, ideas, measurements that look wrong) as you go.
 
 ## Waiting for the user
-- **Pixel 10 Pro XL receiver shader trial:** the latest run passed all depth
-  casting and reset on starting-view surfaces even with runtime receiving off.
-  The prior run passed that step, so location alone is not a reliable trigger.
-  Run build 46 Basic/preflight/area checks with `shadowcode=receivers`, which
-  truly removes the compiled shadow feature from nonreceivers. Copy the failure
-  report if it resets. Actual receivers retain real shadows. Keep the verified
-  shadow-free default until physical confirmation; exact driver cause remains
-  unknown and zero-draw groups remain unproved.
+- **Pixel 10 Pro XL uniform bone shadow trial:** build 46 passed all casting,
+  nonreceiver surfaces, physical and instanced receivers, then reset at skinned
+  body receiving. Run build 47 Basic/preflight/area checks with
+  `shadowcode=receivers&bones=uniform`: uniform matrix palettes avoid bone
+  texture sampling while preserving GPU animation, fur and character shadows.
+  Copy the failure report if it resets. This is an unconfirmed workaround;
+  zero-draw groups and exact driver cause remain unproved. Retain the verified
+  shadow-free Android default until the phone confirms a working shadow path.
 - **Longer Pixel play session:** full detail without shadow maps is physically
   confirmed working and is now the normal Android profile. Check a longer play
   session and offline reopening when convenient. The precise failing GPU
@@ -21,6 +21,10 @@ remove it here and record it in `DEVELOPMENT_LOG.md`. Add new findings (bugs, id
 - **Confirm the squish fix (build 34b)** on the iPhone Home Screen app after turning the phone.
 
 ## 1. Performance first (the game must not get slower)
+- **Uniform bone candidate:** longer controlled throughput samples before default
+  promotion. Short software samples show +4.0% house and +1.9% rooms, within
+  baseline sample spread; the other three views are faster. No steady result or
+  physical timing is established. Keep this opt-in while confirming the Pixel fix.
 - **Loading:** about 27 s on the software-rendering test machine (`tests/perf/ba.cjs`). Most of it is the whole-world draw
   rehearsal that prevents freezes. Spread it across the first seconds of play in small pieces (keep the freeze checks at 0).
 - **The park and creature area are the heaviest views:** about 710k–735k triangles, 165–244 draw calls. Candidates:

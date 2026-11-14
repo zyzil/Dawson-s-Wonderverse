@@ -4,6 +4,20 @@ This is the full rebuild of Dawson's Discovery World in real 3D. It is a **separ
 
 Play: open `index.html`. It is one self-contained file and works offline. Once merged, it is also on GitHub Pages at `…/discovery-world/3d/`.
 
+## Build 47: uniform bone palettes for the shadow trial
+
+The physical build 46 run passed shadow casting, nonreceiving surfaces,
+physical receivers and instanced scenery, then reset while a skinned character
+body received shadows. This narrows that run to a combination; it does not
+establish the exact driver cause or prove groups with zero actual draws.
+
+Opt-in `bones=uniform` together with Basic shadows and `shadowcode=receivers`
+replaces bone-texture reads with uniform matrix palettes for the small rigs.
+GPU animation, skinned normals, fur, character casting/receiving, full detail,
+1536 shadow maps and antialiasing remain enabled. The renderer checks the vertex
+uniform budget and includes rig size in program selection and cache keys.
+Use [graphics checks](graphics-tests.html?build=47). Phone confirmation is pending.
+
 ## Build 46: compile shadow features only for receivers
 
 The latest Pixel run passed all casting checks, then reset while drawing world

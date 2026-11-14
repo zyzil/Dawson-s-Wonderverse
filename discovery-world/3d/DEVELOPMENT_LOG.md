@@ -4,6 +4,36 @@ Completed changes and how each was tested, newest first. Each checkpoint says wh
 browser vs. a real iPhone). The routine and rules are in `CLAUDE.md`; unfinished work is in `NEXT_TASKS.md`; measurements
 are in `PERFORMANCE_LOG.md`.
 
+## Checkpoint: build 47 uniform bone palette shadow candidate
+- **Physical evidence:** build 46 completed all casting, the nonreceiver surface
+  check, physical receivers (19 draws) and instanced receivers (1 draw), then
+  lost the context on skinned-body receiving (1 actual receiving/feature draw,
+  frozen depth map). Standard/custom groups with zero draws remain unproved;
+  fur was not reached. This narrows this run, not a confirmed driver diagnosis.
+- Add explicit `bones=uniform` only for the Basic receiver-shader trial. The
+  pinned ESM adapter replaces bone texelFetch with an array of mat4 uniforms.
+  Keep the normal skinning weights, bind transforms, normals, animation, fur
+  materials and all shadow behavior. Both depth and color passes use palettes.
+  Cache rig size and refresh shared-material variants on mode/rig changes.
+- Reserve 128 vertex uniform vectors for other shader data, cap at 64 bones,
+  and stop with an explicit rig/limit error if a rig cannot fit; do not silently
+  drop animation or switch a receiver back to the failing texture combination.
+  Cache correctly sized Float32Array views per skeleton with a WeakMap, updating
+  if the normal texture path replaces the backing array. No per-frame CPU
+  skinning, new geometry or per-draw GPU queries are introduced.
+- Probe reports add uniform/texture bone draw counts and largest submitted rig
+  for this mode. The hub retains all previous comparisons and save keys. Normal
+  Android stays full-detail/shadow-free; iPhone retains its original settings.
+  Preserve the previous HTML in `../backups/3D_build47_index.html`.
+- Animated pixel/shader test: 99 draw observations including shared materials
+  with 1/3-bone rigs, nonidentity bone transforms, real fur shells and mode
+  rollback, including a fresh uniform-only draw before texture allocation.
+  Maximum channel difference 0 against bone textures; poses change
+  371 channels. Uniform programs expose boneMatrices and no boneTexture;
+  real receivers keep directional shadow samplers. GL error is zero.
+- Full-game, cleanup, default and performance results are in PERFORMANCE_LOG.md.
+  Physical confirmation and the full gameplay suite remain pending; keep draft.
+
 ## Checkpoint: build 46 receiver-specific shadow shader variants
 - **New physical result:** build 45 reset at the starting view (5,0), aspect
   0.5428921569, after all depth casting checks passed. The failed color batch

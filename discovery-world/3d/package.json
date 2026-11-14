@@ -15,6 +15,7 @@
     "test:gpu-work": "node tests/gpu-work.cjs",
     "test:shadow-preflight": "node tests/shadow-preflight.cjs",
     "test:shadow-world": "node tests/shadow-world.cjs",
+    "test:uniform-bones": "node tests/uniform-bones.cjs",
     "test:receiver-programs": "node tests/receiver-programs.cjs"
   },
   "devDependencies": {

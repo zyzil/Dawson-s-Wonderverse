@@ -48,6 +48,7 @@ async function main() {
         preflightShadows: getGraphicsProfile('?graphics=full-basic-shadows&preflight=1', ua),
         worldCheck: getGraphicsProfile('?graphics=full-basic-shadows&preflight=1&worldprobe=1', ua),
         areaCheck: getGraphicsProfile('?graphics=full-basic-shadows&preflight=1&worldprobe=areas', ua),
+        uniformBones: getGraphicsProfile('?graphics=full-basic-shadows&shadowcode=receivers&bones=uniform', ua),
         receiverPrograms: getGraphicsProfile('?graphics=full-basic-shadows&shadowcode=receivers', ua),
         noShadowPreflight: getGraphicsProfile('?graphics=full-no-shadows&preflight=1', ua),
         originalWarmup: getGraphicsProfile('?graphics=full-basic-shadows&warmup=original', ua),
@@ -73,6 +74,10 @@ async function main() {
     assert.equal(profiles.worldCheck.worldShadowCheck, true);
     assert.equal(profiles.areaCheck.worldShadowCheck, true);
     assert.equal(profiles.areaCheck.worldShadowCheckAreas, true);
+    assert.equal(profiles.uniformBones.uniformBones, true);
+    assert.equal(profiles.receiverPrograms.uniformBones, false);
+    assert.equal(profiles.androidDefault.uniformBones, false);
+    assert.equal(profiles.iphone.uniformBones, false);
     assert.equal(profiles.receiverPrograms.receiverShadowPrograms, true);
     assert.equal(profiles.areaCheck.receiverShadowPrograms, false);
     assert.equal(profiles.androidDefault.receiverShadowPrograms, false);
@@ -103,12 +108,15 @@ async function main() {
     assert.equal(new URL(await hub.locator('#worldShadows').getAttribute('href'), base).searchParams.get('worldprobe'), '1');
     assert.equal(new URL(await hub.locator('#areaShadows').getAttribute('href'), base).searchParams.get('worldprobe'), 'areas');
     assert.equal(new URL(await hub.locator('#receiverShadows').getAttribute('href'), base).searchParams.get('shadowcode'), 'receivers');
+    assert.equal(new URL(await hub.locator('#boneShadows').getAttribute('href'), base).searchParams.get('bones'), 'uniform');
+    await hub.getByLabel('Uniform bone shadow test result').selectOption('Worked');
     await hub.getByLabel('Receiver shader test result').selectOption('Worked');
     assert.equal(new URL(await hub.locator('#next').getAttribute('href')).searchParams.get('restore'), 'scenery');
     await hub.reload(); await hub.locator('[data-feature="power"]').waitFor();
     assert.equal(await hub.getByLabel('Sharper picture result').inputValue(), 'Worked');
     assert.equal(await hub.getByLabel('Full detail without shadow maps result').inputValue(), 'Worked');
     assert.equal(await hub.getByLabel('Receiver shader test result').inputValue(), 'Worked');
+    assert.equal(await hub.getByLabel('Uniform bone shadow test result').inputValue(), 'Worked');
     assert.equal(await hub.evaluate(() => localStorage.getItem('dawsons-discovery-world-3d-v1')), saved);
     await hub.locator('#copy').click();
     assert.match(await hub.locator('#summary').innerText(), /Sharper picture: Worked/);
@@ -153,13 +161,13 @@ async function main() {
     await fallback.close();
     console.log('PASS default Android canvas fallback without weakening explicit trials');
 
-    const cases = ['baseline', ...KEYS, 'full-no-shadows', 'android-default', 'full-basic-shadows', 'full-basic-preflight', 'full-basic-world', 'full-basic-areas', 'full-basic-receivers'];
+    const cases = ['baseline', ...KEYS, 'full-no-shadows', 'android-default', 'full-basic-shadows', 'full-basic-preflight', 'full-basic-world', 'full-basic-areas', 'full-basic-receivers', 'full-basic-bones'];
     const selected = process.env.GRAPHICS_CASES ? process.env.GRAPHICS_CASES.split(',') : cases;
     assert(selected.length && selected.every(k => cases.includes(k)), 'valid requested game scenarios');
     for (const key of cases.filter(k => selected.includes(k))) {
       const basicCase = key.startsWith('full-basic-');
-      const areaCase = key === 'full-basic-areas' || key === 'full-basic-receivers';
-      const ctx = await browser.newContext({ userAgent: PIXEL, viewport: key === 'full-basic-receivers' ? { width: 443, height: 816 } : key === 'full-basic-areas' ? { width: 390, height: 844 } : { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
+      const areaCase = key === 'full-basic-areas' || key === 'full-basic-receivers' || key === 'full-basic-bones';
+      const ctx = await browser.newContext({ userAgent: PIXEL, viewport: ['full-basic-receivers','full-basic-bones'].includes(key) ? { width: 443, height: 816 } : key === 'full-basic-areas' ? { width: 390, height: 844 } : { width: 844, height: 390 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
       const page = await ctx.newPage(), errors = [];
       page.on('pageerror', e => errors.push(e.message));
       await page.addInitScript(() => {
@@ -167,11 +175,12 @@ async function main() {
         Object.defineProperty(window, '__DDW3', { configurable: true, set(D) {
           Object.defineProperty(window, '__DDW3', { value: D, writable: true, configurable: true });
           window.__shadowViews = []; window.__preflightDraws = []; window.__worldChecks = [];
-          window.__offShadowPrograms = new Set(); window.__onShadowPrograms = new Set();
+          window.__offShadowPrograms = new Set(); window.__onShadowPrograms = new Set(); window.__bonePrograms = new Set(); window.__rigCounts = new Set();
           if (D.graphics.receiverShadowPrograms) D.G.scene.traverse(o => {
             if (!o.material) return; const after = o.onAfterRender;
             o.onAfterRender = function(...args) {
               const p = D.renderer.properties.get(args[4]).currentProgram;
+              if (this.isSkinnedMesh) { __bonePrograms.add(p); __rigCounts.add(this.skeleton.bones.length); }
               const name = D.graphicsReport.worldShadowCheck?.probes.at(-1)?.name;
               if (name === 'surfaces: shadow receiving off') __offShadowPrograms.add(p);
               if (this.receiveShadow && args[4].isMeshStandardMaterial) __onShadowPrograms.add(p);
@@ -201,7 +210,7 @@ async function main() {
       });
       const query = new URLSearchParams({ graphics: 'safe', trial: '1' });
       if (key === 'android-default') { query.delete('graphics'); query.delete('trial'); }
-      else if (basicCase) { query.set('graphics', 'full-basic-shadows'); if (key !== 'full-basic-shadows') query.set('preflight', '1'); if (key === 'full-basic-world') query.set('worldprobe', '1'); if (areaCase) query.set('worldprobe', 'areas'); if (key === 'full-basic-receivers') query.set('shadowcode', 'receivers'); }
+      else if (basicCase) { query.set('graphics', 'full-basic-shadows'); if (key !== 'full-basic-shadows') query.set('preflight', '1'); if (key === 'full-basic-world') query.set('worldprobe', '1'); if (areaCase) query.set('worldprobe', 'areas'); if (['full-basic-receivers','full-basic-bones'].includes(key)) query.set('shadowcode', 'receivers'); if (key === 'full-basic-bones') query.set('bones', 'uniform'); }
       else if (key === 'full-no-shadows') query.set('graphics', key);
       else if (key !== 'baseline') query.set('restore', key);
       const start = Date.now();
@@ -298,10 +307,11 @@ async function main() {
             const compiled = await page.evaluate(() => {
               const gl=__DDW3.renderer.getContext();
               const names = p => {const out=[];for(let i=0,n=gl.getProgramParameter(p.program,gl.ACTIVE_UNIFORMS);i<n;i++)out.push(gl.getActiveUniform(p.program,i).name);return out;};
-              return { off: [...__offShadowPrograms].map(names), on: [...__onShadowPrograms].map(names) };
+              return { off: [...__offShadowPrograms].map(names), on: [...__onShadowPrograms].map(names), bones: [...__bonePrograms].map(names), rigCounts: [...__rigCounts] };
             });
             assert(compiled.off.length > 0 && compiled.off.every(ns => ns.every(n => !/ShadowMap/.test(n))));
             assert(compiled.on.some(ns => ns.some(n => /directionalShadowMap/.test(n))));
+            if (key === 'full-basic-bones') { assert(compiled.bones.length > 0); assert(compiled.bones.every(ns => ns.some(n => n === 'boneMatrices[0]') && !ns.includes('boneTexture'))); console.log('PASS actual game uniform skinning programs:', JSON.stringify({programs:compiled.bones.length, rigCounts:compiled.rigCounts})); }
             console.log('PASS actual compiled programs: no shadow samplers for nonreceivers; real receivers retain them', JSON.stringify({off:compiled.off.length,on:compiled.on.length}));
           }
           console.log('PASS portrait area checks:', JSON.stringify(views));
@@ -314,7 +324,7 @@ async function main() {
           await page.locator('#copyGraphicsReport').waitFor();
           await page.locator('#copyGraphicsReport').click();
           const report = JSON.parse(await page.locator('#graphicsReport').innerText());
-          assert.equal(report.build, 46); assert.equal(report.contextLost, true);
+          assert.equal(report.build, 47); assert.equal(report.contextLost, true);
           assert.equal(report.profile.shadowType, 'basic'); assert(report.lastSubmittedStage);
           console.log('PASS game context-loss report');
         }

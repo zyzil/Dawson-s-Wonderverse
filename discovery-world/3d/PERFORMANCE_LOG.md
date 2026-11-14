@@ -4,6 +4,65 @@ Rule: the game must never get slower. Measure before and after every change on i
 **Desktop numbers come from a software-rendered browser and are NOT iPhone numbers.** Only the in-game report from the
 real iPhone (⚙️ → Performance Test → Copy Test Results) counts as an iPhone measurement.
 
+## Build 47 uniform bone palettes with real character shadows
+
+- New physical evidence from build 46: all casting checks, nonreceiver surfaces,
+  physical receivers (19 draws) and instanced receivers (1 draw) passed. The
+  next skinned-body receiving batch (1 receiver/feature draw) reset with shadow
+  updates frozen. This identifies a narrower submitted combination in that run;
+  it does not prove a driver root cause. Fur and zero-draw groups remain unproved.
+- Explicit `bones=uniform` in the receiver-specific Basic trial uploads small
+  matrix palettes as vertex uniforms instead of sampling bone textures. It
+  preserves GPU skinning, normals, fur, materials and all casting/receiving.
+  Budget: reserve 128 vertex vectors, cap 64 bones; oversized rigs fail clearly.
+  Shared-material program keys/switches include rig size, and typed-array views
+  are cached per skeleton/backing array. Ordinary profiles keep texture skinning.
+- Focused real-renderer comparison: 99 draws across shared 1/3-bone rigs,
+  nonidentity animated transforms, real fur and texture/uniform rollback.
+  Maximum pixel channel difference **0**, animation changes **371 channels**,
+  and GL error **0**. Reflection proves boneMatrices present and boneTexture
+  absent in palette programs, with real receiving shadow samplers retained.
+- Full game at **443×816**, scale 2 (reported aspect 0.5428921568627451):
+  all **78** probes across six views complete with GL error 0 and restored state;
+  11 local warmup passes and 16 batches finish with no wide shadow passes.
+  Actual observed character programs (3, 17-bone rig) contain boneMatrices and
+  no boneTexture. Observed nonreceiver programs (22) omit shadow samplers;
+  real receiver programs retain them. All seven graphics categories and the
+  1536 nearest/plain depth sampler remain enabled. Play and portraits work,
+  and the game screenshot visibly includes the character's cast shadow.
+  Diagnostic startup is **68.1 s**; ordinary Android is **38.4 s** in this run.
+- Native receiver variants still pass 54 pixel-identical draw observations.
+  Uniform-mode multi-view success and injected loss restore original state and
+  callbacks; prior completed view history survives. Copied build-47 reports,
+  profile isolation, strict context requests, persistent hub results, save
+  isolation, offline uniform-trial navigation and legacy cache migration pass.
+- Before/after full Basic HTML, without diagnostics: startup **61.1 / 50.6 s**,
+  zero new first-entry programs in all five views. The live three-frame samples
+  submit different call/triangle counts (shadow update cadence and animation),
+  so their timing differences cannot establish a throughput change. A frozen
+  same-world texture/uniform ABBA comparison uses the full HDR pipeline and
+  one frozen-shadow frame plus one updating-shadow frame per sample. Every
+  sample has identical calls/triangles within its view, zero new warmed programs
+  and GL error 0. Mean two-frame GPU-completed wall times (texture/uniform ms):
+
+  | View | Texture bones | Uniform bones | Difference |
+  | --- | ---: | ---: | ---: |
+  | Park | 4552 | 4520 | -0.7% |
+  | Creatures | 5257 | 5160 | -1.8% |
+  | Castle | 4308 | 4115 | -4.5% |
+  | House | 1958 | 2037 | +4.0% |
+  | Castle rooms | 1883 | 1919 | +1.9% |
+
+  Two samples per mode are insufficient for a steady-throughput claim. The house
+  texture samples alone span 1904–2013 ms (5.6%); room samples span 1862–1904 ms
+  (2.2%). The small positive differences need longer measurement before any
+  default promotion. This remains an opt-in phone compatibility candidate;
+  normal rendering profiles are unchanged. Do not describe these timings as a
+  confirmed speed improvement or a confirmed regression.
+- These are desktop/software checks, not Pixel or iPhone results. Physical
+  shadow compatibility, a longer throughput run and the full gameplay suite
+  remain pending; retain the working Android default and draft PR.
+
 ## Build 46 receiver-specific compiled shadow variants
 
 - **New phone result:** build 45 passed all depth-casting probes, then reset at
