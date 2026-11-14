@@ -12,12 +12,18 @@
 <body><main>
 <h1>Restore graphics one at a time</h1>
 <p>Each check starts with the working lighter settings and adds <b>one feature</b>. Play briefly, then use “Graphics checks” at the top of the game to return and record the result.</p>
-<aside><b>Next: underground and later area checks (build 45)</b>
+<aside><b>Next: omit shadow shader code from nonreceivers (build 46)</b>
+<p>The latest run passed all casting checks, then reset at the starting view while drawing surfaces with shadow receiving off. That runtime switch still leaves shadow code and samplers in Three.js's compiled shaders.</p>
+<p>This opt-in change removes that code and those samplers for objects that do not receive shadows. Real receivers keep their original shadows. It retains full detail, map resolution, effects and antialiasing, and runs the area checks with the new compiled variants.</p>
+<p><a id="receiverShadows" class="primary" href="./?graphics=full-basic-shadows&amp;preflight=1&amp;worldprobe=areas&amp;shadowcode=receivers&amp;trial=1&amp;build=46">Try shadows with unused shader code removed</a></p>
+<label>Result: <select id="receiverShadowResult" aria-label="Receiver shader test result"></select></label>
+<p>If it resets, use “Copy graphics report”. The new report counts draws whose selected program still includes the shadow feature. The phone result is unconfirmed.</p></aside>
+<details><summary>Previous area run reset during surfaces with receiving off</summary>
 <p>The Pixel completed every starting-view check and six local views, then reset at underground view (20, -6). Several receiving groups had no visible draws at the start, so those groups remain unproved.</p>
 <p>This run keeps the starting checks and also separates casting and receiving at both underground views, then the remaining sky and castle views. The report includes coordinates, camera aspect and a compact history, so completed views survive a later failure.</p>
 <p><a id="areaShadows" class="primary" href="./?graphics=full-basic-shadows&amp;preflight=1&amp;worldprobe=areas&amp;trial=1&amp;build=45">Run underground and later checks</a></p>
 <label>Result: <select id="areaShadowResult" aria-label="Area shadow checks result"></select></label>
-<p>This diagnostic adds loading work. If it resets, use “Copy graphics report”.</p></aside>
+<p>The latest phone run instead reset during the starting-view surface draw, before underground checks. The earlier starting-only run had passed that step; the failure is not reliably confined to one area.</p></details>
 <details><summary>Starting-view checks passed; underground view reset</summary>
 <p>The Pixel passed both simple draws in build 43, including the HDR antialiased startup buffer. It still reset when drawing the actual world. Initialization order did not solve it.</p>
 <p>This run separates the real world's shadow casting from its surfaces. It checks static, instanced and skinned casters, then tests shadow receiving on material groups with the depth map frozen. Each step waits for GPU completion and records its result.</p>
@@ -61,13 +67,13 @@
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
 </script>
 <script type="module">
-import { GRAPHICS_TRIALS } from './src/graphics.js?build=45';
+import { GRAPHICS_TRIALS } from './src/graphics.js?build=46';
 const KEY = 'ddw3-graphics-checks-v1', PENDING = 'ddw3-graphics-check-pending';
 const states = ['Not tested', 'Worked', 'Slow', 'Failed'];
 let results = {}, pending = '';
 try { results = JSON.parse(localStorage.getItem(KEY) || '{}'); pending = sessionStorage.getItem(PENDING) || ''; } catch {}
 if (!results || typeof results !== 'object' || Array.isArray(results)) results = {};
-results = Object.fromEntries([...GRAPHICS_TRIALS.map(t => t.key), 'full-no-shadows', 'full-basic-shadows', 'full-basic-local', 'full-basic-preflight', 'full-basic-world', 'full-basic-areas'].map(key => [key, states.includes(results[key]) ? results[key] : 'Not tested']));
+results = Object.fromEntries([...GRAPHICS_TRIALS.map(t => t.key), 'full-no-shadows', 'full-basic-shadows', 'full-basic-local', 'full-basic-preflight', 'full-basic-world', 'full-basic-areas', 'full-basic-receivers'].map(key => [key, states.includes(results[key]) ? results[key] : 'Not tested']));
 function url(key) {
   const u = new URL('./', location.href);
   u.search = new URLSearchParams({ graphics: 'safe', restore: key, trial: '1', build: '38' });
@@ -85,6 +91,11 @@ document.getElementById('localShadows').onclick = () => start('full-basic-local'
 document.getElementById('preflightShadows').onclick = () => start('full-basic-preflight');
 document.getElementById('worldShadows').onclick = () => start('full-basic-world');
 document.getElementById('areaShadows').onclick = () => start('full-basic-areas');
+document.getElementById('receiverShadows').onclick = () => start('full-basic-receivers');
+const receivers = document.getElementById('receiverShadowResult');
+for (const state of states) { const o = document.createElement('option'); o.value = o.textContent = state; receivers.appendChild(o); }
+receivers.value = results['full-basic-receivers'];
+receivers.onchange = () => { results['full-basic-receivers'] = receivers.value; try { localStorage.setItem(KEY, JSON.stringify(results)); } catch {} };
 const areaCheck = document.getElementById('areaShadowResult');
 for (const state of states) { const o = document.createElement('option'); o.value = o.textContent = state; areaCheck.appendChild(o); }
 areaCheck.value = results['full-basic-areas'];
@@ -109,7 +120,7 @@ const combined = document.getElementById('shadowFreeResult');
 for (const state of states) { const o = document.createElement('option'); o.value = o.textContent = state; combined.appendChild(o); }
 combined.value = results['full-no-shadows'];
 combined.onchange = () => { results['full-no-shadows'] = combined.value; try { localStorage.setItem(KEY, JSON.stringify(results)); } catch {} };
-const last = pending === 'full-basic-areas' ? { label: 'Underground and later area checks' } : pending === 'full-basic-world' ? { label: 'World shadow checks' } : pending === 'full-basic-preflight' ? { label: 'Canvas-first Basic shadows' } : pending === 'full-basic-local' ? { label: 'Basic shadows with local startup' } : pending === 'full-basic-shadows' ? { label: 'Basic shadows with original startup' } : pending === 'full-no-shadows' ? { label: 'Full detail without shadow maps' } : GRAPHICS_TRIALS.find(t => t.key === pending);
+const last = pending === 'full-basic-receivers' ? { label: 'Receiver shader programs' } : pending === 'full-basic-areas' ? { label: 'Underground and later area checks' } : pending === 'full-basic-world' ? { label: 'World shadow checks' } : pending === 'full-basic-preflight' ? { label: 'Canvas-first Basic shadows' } : pending === 'full-basic-local' ? { label: 'Basic shadows with local startup' } : pending === 'full-basic-shadows' ? { label: 'Basic shadows with original startup' } : pending === 'full-no-shadows' ? { label: 'Full detail without shadow maps' } : GRAPHICS_TRIALS.find(t => t.key === pending);
 if (last) { const p = document.getElementById('last'); p.hidden = false; p.textContent = 'Last check: ' + last.label + '. Record its result on this page.'; }
 for (const [i, t] of GRAPHICS_TRIALS.entries()) {
   const card = document.createElement('section'); card.className = 'check'; card.dataset.feature = t.key;
@@ -130,7 +141,7 @@ for (const [i, t] of GRAPHICS_TRIALS.entries()) {
 }
 updateNext();
 document.getElementById('copy').onclick = async () => {
-  const text = 'Graphics checks — build 45\nReported Pixel result: all starting-view probes and six local views completed; underground (20, -6) reset.\nArea shadow checks: ' + results['full-basic-areas'] + '\nStarting-view shadow checks: ' + results['full-basic-world'] + '\nCanvas-first Basic shadows: ' + results['full-basic-preflight'] + '\nBasic shadows with local startup: ' + results['full-basic-local'] + '\nBasic shadows with original startup: ' + results['full-basic-shadows'] + '\nFull detail without shadow maps: ' + results['full-no-shadows'] + '\n' + GRAPHICS_TRIALS.map(t => t.label + ': ' + results[t.key]).join('\n') + '\nBrowser: ' + navigator.userAgent;
+  const text = 'Graphics checks — build 46\nLatest Pixel result: all casting checks passed; surfaces with receiving off reset at the starting view.\nReceiver shader programs: ' + results['full-basic-receivers'] + '\nArea shadow checks: ' + results['full-basic-areas'] + '\nStarting-view shadow checks: ' + results['full-basic-world'] + '\nCanvas-first Basic shadows: ' + results['full-basic-preflight'] + '\nBasic shadows with local startup: ' + results['full-basic-local'] + '\nBasic shadows with original startup: ' + results['full-basic-shadows'] + '\nFull detail without shadow maps: ' + results['full-no-shadows'] + '\n' + GRAPHICS_TRIALS.map(t => t.label + ': ' + results[t.key]).join('\n') + '\nBrowser: ' + navigator.userAgent;
   const pre = document.getElementById('summary'); pre.textContent = text; pre.hidden = false;
   try { await navigator.clipboard.writeText(text); document.getElementById('notice').textContent = 'Copied. Paste the results into the chat.'; }
   catch { document.getElementById('notice').textContent = 'Copy the results shown below.'; }

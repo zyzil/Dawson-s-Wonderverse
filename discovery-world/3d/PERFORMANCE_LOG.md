@@ -4,6 +4,50 @@ Rule: the game must never get slower. Measure before and after every change on i
 **Desktop numbers come from a software-rendered browser and are NOT iPhone numbers.** Only the in-game report from the
 real iPhone (⚙️ → Performance Test → Copy Test Results) counts as an iPhone measurement.
 
+## Build 46 receiver-specific compiled shadow variants
+
+- **New phone result:** build 45 passed all depth-casting probes, then reset at
+  starting-view surfaces with zero receiving draws, aspect 0.5428921568627451.
+  This stage passed in the earlier run, so neither an underground-only trigger
+  nor a deterministic failure has been established. Runtime receiving-off does
+  not remove the original r187 compiled shadow feature or its active samplers.
+- Opt-in `shadowcode=receivers` selects cached shader variants without shadow
+  chunks/samplers for nonreceivers, retaining them for receivers. The guarded
+  build adaptation updates program selection when receiving or mode changes;
+  ordinary profile behavior and all material features remain. No dependency
+  source is modified on disk, and the original tiny check stays unadapted.
+- A real-renderer test checks **54 draw observations** across shared, custom
+  uniform and skinned materials, receiving toggles and mode rollback. Actual
+  active shadow sampler uniforms are absent for nonreceivers and present for
+  receivers. Rendered pixels have **maximum channel difference 0** versus the
+  ordinary path. GL error is zero. Multi-view loss tests with the mode enabled
+  retain prior history and restore all callbacks/flags; successful runs retain
+  identical output.
+- Full-game software Chromium, portrait **443×816**, scale 2, exactly matches
+  the reported camera aspect. All 78 area probes complete, restore state and
+  report zero GL errors. The runtime-off batches report zero compiled-shadow
+  feature draws. Actual compiled-program reflection finds **22** nonreceiver
+  programs without shadow-map uniforms and **23** observed receiver programs,
+  including ones retaining directional shadow samplers. All original graphics
+  categories, 1536 map, nearest sampling and plain SAMPLER_2D remain; shadows are
+  visible in the game screenshot. Startup including diagnostics and rotation to
+  Play takes 68.7 s in that run. Normal Android startup is 39.0 s in its completed
+  run before the workspace restart; no physical timing improvement is claimed.
+- Before/after full-detail Basic workload **without diagnostics**, software
+  Chromium at 844×390 scale 2: startup 51.4 / 48.1 s. Both builds introduce zero
+  new programs on first entry to park, creatures, castle, house and castle rooms.
+  Three-frame times (old/new ms) are 3396/3497, 7404/7164, 7702/7481, 5805/6093,
+  2799/2771, with identical sampled draw/triangle counts. These short samples vary
+  by a few percent and do not establish a steady throughput change or phone
+  speed; longer performance validation is pending before promotion.
+- Focused mode/default profiles, strict canvas rejection, shader/pixel behavior,
+  cached variant switching, copied failure reports, portraits, quality guards,
+  hub persistence/save isolation and offline migration pass.
+- The physical compatibility result, precise driver root cause, longer runtime
+  measurement and full gameplay suite remain pending. Keep the fork PR draft and
+  normal Android on its confirmed shadow-free configuration. The explicit trial
+  adds diagnostic loading work and is not enabled by normal URLs.
+
 ## Build 45 underground and later local-view diagnostics
 
 - Physical build 44 result: all starting-view probes completed with zero GL

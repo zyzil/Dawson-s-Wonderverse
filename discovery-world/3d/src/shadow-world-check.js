@@ -22,6 +22,8 @@ function receiverGroup(o) {
 export async function checkWorldShadows({ renderer, scene, camera, sun, target, report, step, view }) {
   const location = view ? { ...view, aspect: camera.aspect } : { cameraPosition: camera.position.toArray(), aspect: camera.aspect };
   const check = report.worldShadowCheck = { view: location, probes: [], complete: false, stateRestored: false };
+  const receiverOnly = renderer.shadowMap.receiverOnly === true;
+  check.receiverOnlyPrograms = receiverOnly;
   const history = { view: location, complete: false, completedProbes: 0, stateRestored: false };
   (report.worldShadowChecks ||= []).push(history);
   const objects = new Map(), lights = new Map();
@@ -32,7 +34,7 @@ export async function checkWorldShadows({ renderer, scene, camera, sun, target, 
     scene.traverse(o => {
       if (o.isLight && !lights.has(o)) lights.set(o, o.layers.mask);
       if (!o.material || objects.has(o)) return;
-      const saved = { cast: o.castShadow, receive: o.receiveShadow, before: o.onBeforeShadow, beforeRender: o.onBeforeRender };
+      const saved = { cast: o.castShadow, receive: o.receiveShadow, before: o.onBeforeShadow, beforeRender: o.onBeforeRender, afterRender: o.onAfterRender };
       objects.set(o, saved);
       if (saved.cast) o.onBeforeShadow = function (...args) {
         if (activeProbe) activeProbe.shadowDraws++;
@@ -42,6 +44,11 @@ export async function checkWorldShadows({ renderer, scene, camera, sun, target, 
         const result = saved.beforeRender.apply(this, args);
         if (activeProbe && this.receiveShadow) activeProbe.receiverDraws++;
         return result;
+      };
+      if (receiverOnly) o.onAfterRender = function (...args) {
+        // Metadata for the selected program; no extra GPU queries per draw.
+        if (activeProbe && renderer.properties.get(args[4]).surfaceShadowEnabled === true) activeProbe.shadowFeatureDraws++;
+        return saved.afterRender.apply(this, args);
       };
     });
   }
@@ -66,6 +73,7 @@ export async function checkWorldShadows({ renderer, scene, camera, sun, target, 
         if (o.castShadow) enabledCasters++; if (o.receiveShadow) enabledReceivers++;
       }
       const probe = { name, completed: false, depthOnly, update, enabledCasters, enabledReceivers, shadowDraws: 0, receiverDraws: 0 };
+      if (receiverOnly) probe.shadowFeatureDraws = 0;
       check.probes.push(probe); activeProbe = probe;
       history.lastProbe = name;
       step('World shadow check' + (view ? ` [${view.x}, ${view.y}]` : '') + ': ' + name);
@@ -96,11 +104,11 @@ export async function checkWorldShadows({ renderer, scene, camera, sun, target, 
     check.complete = true; history.complete = true;
   } finally {
     activeProbe = null;
-    for (const [o, saved] of objects) { o.castShadow = saved.cast; o.receiveShadow = saved.receive; o.onBeforeShadow = saved.before; o.onBeforeRender = saved.beforeRender; }
+    for (const [o, saved] of objects) { o.castShadow = saved.cast; o.receiveShadow = saved.receive; o.onBeforeShadow = saved.before; o.onBeforeRender = saved.beforeRender; o.onAfterRender = saved.afterRender; }
     for (const [o, mask] of lights) o.layers.mask = mask;
     renderer.shadowMap.autoUpdate = auto; renderer.shadowMap.needsUpdate = needs;
     renderer.info.autoReset = infoAuto; renderer.setRenderTarget(previousTarget);
-    check.stateRestored = [...objects].every(([o, s]) => o.castShadow === s.cast && o.receiveShadow === s.receive && o.onBeforeShadow === s.before && o.onBeforeRender === s.beforeRender)
+    check.stateRestored = [...objects].every(([o, s]) => o.castShadow === s.cast && o.receiveShadow === s.receive && o.onBeforeShadow === s.before && o.onBeforeRender === s.beforeRender && o.onAfterRender === s.afterRender)
       && [...lights].every(([o, mask]) => o.layers.mask === mask);
     history.stateRestored = check.stateRestored;
   }

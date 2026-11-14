@@ -4,6 +4,21 @@ This is the full rebuild of Dawson's Discovery World in real 3D. It is a **separ
 
 Play: open `index.html`. It is one self-contained file and works offline. Once merged, it is also on GitHub Pages at `…/discovery-world/3d/`.
 
+## Build 46: compile shadow features only for receivers
+
+The latest Pixel run passed all casting checks, then reset while drawing world
+surfaces with runtime shadow receiving off. The same step passed previously;
+view aspect and asynchronously loaded meshes differ, so an underground-only
+trigger is not established. Three.js still includes shadow chunks/samplers when
+only the runtime receiving uniform is off.
+
+Explicit `shadowcode=receivers` limits the compiled shadow feature to actual
+receiving objects. Casting, real receiver shadows, materials, resolution and
+antialiasing are preserved. The build adapts the pinned r187 renderer with guarded
+substitutions and correct cached-program switching for shared materials. Normal
+profiles keep their existing rendering behavior. This is an unconfirmed phone
+compatibility trial; use [graphics checks](graphics-tests.html?build=46).
+
 ## Build 45: check the underground and remaining local views
 
 The Pixel completed all starting-view probes and six local views in build 44,

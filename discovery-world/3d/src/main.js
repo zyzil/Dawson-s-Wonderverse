@@ -39,7 +39,7 @@ const $ = id => document.getElementById(id);
 const GRAPHICS_CHECK = new URLSearchParams(location.search).get('trial') === '1';
 let graphicsStage = 'Creating renderer', graphicsLost = false;
 let localWarmupPending = GRAPHICS.localShadowWarmup;
-const graphicsReport = { build: 45, profile: GRAPHICS, userAgent: navigator.userAgent };
+const graphicsReport = { build: 46, profile: GRAPHICS, userAgent: navigator.userAgent };
 const graphicsStep = stage => { graphicsStage = stage; };
 function showGraphicsReport() {
   if (!GRAPHICS_CHECK || $('copyGraphicsReport')) return;
@@ -57,9 +57,9 @@ function showGraphicsReport() {
 // Only explicit trial links show this return control, even if startup fails.
 if (GRAPHICS_CHECK) {
   const link = document.createElement('a'); link.className = 'graphicsTrialBack';
-  link.href = 'graphics-tests.html?build=45';
+  link.href = 'graphics-tests.html?build=46';
   const trialMode = new URLSearchParams(location.search).get('graphics');
-  const trialLabel = trialMode === 'full-basic-shadows' ? 'Basic shadows · ' + (GRAPHICS.worldShadowCheckAreas ? 'area checks' : GRAPHICS.worldShadowCheck ? 'world checks' : GRAPHICS.shadowPreflight ? 'canvas-first startup' : GRAPHICS.localShadowWarmup ? 'local startup' : 'original startup')
+  const trialLabel = trialMode === 'full-basic-shadows' ? 'Basic shadows · ' + (GRAPHICS.receiverShadowPrograms ? 'receiver shaders' : GRAPHICS.worldShadowCheckAreas ? 'area checks' : GRAPHICS.worldShadowCheck ? 'world checks' : GRAPHICS.shadowPreflight ? 'canvas-first startup' : GRAPHICS.localShadowWarmup ? 'local startup' : 'original startup')
     : trialMode === 'full-no-shadows' ? 'Full detail, no shadow maps'
     : GRAPHICS.restored.map(k => GRAPHICS_TRIALS.find(t => t.key === k).label).join(', ') || 'Working baseline';
   link.textContent = '↩ Graphics checks · ' + trialLabel + (trialMode !== 'full-basic-shadows' && GRAPHICS.shadows && GRAPHICS.shadowType === 'basic' ? ' · basic sampling' : '');
@@ -129,6 +129,7 @@ function createRenderer(canvas) {
   }
 }
 const renderer = createRenderer(canvas);
+renderer.shadowMap.receiverOnly = GRAPHICS.receiverShadowPrograms;
 if (GRAPHICS_CHECK) {
   const gl = renderer.getContext(), debug = gl.getExtension('WEBGL_debug_renderer_info');
   graphicsReport.renderer = gl.getParameter(debug ? debug.UNMASKED_RENDERER_WEBGL : gl.RENDERER);

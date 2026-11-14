@@ -20,7 +20,9 @@ async function main() {
         userAgent: 'Mozilla/5.0 (Linux; Android 17; Pixel 10 Pro XL) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Mobile Safari/537.36' });
       const page = await ctx.newPage(), errors = []; page.on('pageerror', e => errors.push(e.message));
       const start = Date.now();
-      await page.goto('http://127.0.0.1:' + server.address().port + '/' + i + '?graphics=full-basic-shadows', { timeout: 180000 });
+      const query = new URLSearchParams({ graphics: 'full-basic-shadows' });
+      if (process.env.SHADOW_CODE === 'receivers') query.set('shadowcode', 'receivers');
+      await page.goto('http://127.0.0.1:' + server.address().port + '/' + i + '?' + query, { timeout: 180000 });
       await page.waitForFunction(() => window.__DDW3 && document.getElementById('loading').classList.contains('done'), null, { timeout: 180000 });
       await page.locator('#playBtn').tap();
       const result = { file: path.basename(file), startupMs: Date.now() - start, views: {} };

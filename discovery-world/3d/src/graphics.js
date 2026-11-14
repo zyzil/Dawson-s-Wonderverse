@@ -36,7 +36,8 @@ export function getGraphicsProfile(search = location.search, ua = navigator.user
   const shadowPreflight = localShadowWarmup && params.get('preflight') === '1';
   const worldShadowCheck = shadowPreflight && ['1', 'areas'].includes(params.get('worldprobe'));
   const worldShadowCheckAreas = worldShadowCheck && params.get('worldprobe') === 'areas';
-  return Object.freeze({ safe, restored: Object.freeze(restored), shadowType, localShadowWarmup, shadowPreflight, worldShadowCheck, worldShadowCheckAreas, ...flags });
+  const receiverShadowPrograms = flags.shadows && shadowType === 'basic' && params.get('shadowcode') === 'receivers';
+  return Object.freeze({ safe, restored: Object.freeze(restored), shadowType, localShadowWarmup, shadowPreflight, worldShadowCheck, worldShadowCheckAreas, receiverShadowPrograms, ...flags });
 }
 
 export const GRAPHICS = getGraphicsProfile();

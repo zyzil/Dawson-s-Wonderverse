@@ -2,12 +2,13 @@
 const { build } = require('esbuild'), { chromium } = require('playwright');
 const http = require('node:http'), path = require('node:path'), assert = require('node:assert/strict');
 async function main() {
+  const { receiverShadowPrograms } = await import('../tools/receiver-shadow-programs.mjs');
   const bundle = await build({ stdin: { resolveDir: path.resolve(__dirname, '..'), contents: `
     import * as THREE from 'three'; import { makeWarmTarget } from './src/gpu-work.js';
     import { checkWorldShadows } from './src/shadow-world-check.js';
     window.run = async lose => {
       const r = new THREE.WebGLRenderer(); r.setSize(96,64); r.info.autoReset=false;
-      r.shadowMap.enabled=true; r.shadowMap.type=THREE.BasicShadowMap;
+      r.shadowMap.enabled=true; r.shadowMap.type=THREE.BasicShadowMap; r.shadowMap.receiverOnly=true;
       const scene=new THREE.Scene(), camera=new THREE.PerspectiveCamera(45,1.5,.1,30);
       camera.position.set(4,6,7); camera.lookAt(0,.3,0);
       const sun=new THREE.DirectionalLight('white',2); sun.position.set(-3,7,4); sun.castShadow=true;
@@ -28,7 +29,7 @@ async function main() {
       function skin(mat,cast) {const o=new THREE.SkinnedMesh(sphere,mat),bone=new THREE.Bone();o.add(bone);o.bind(new THREE.Skeleton([bone]));o.position.y=.5;o.castShadow=cast;o.receiveShadow=true;scene.add(o);return o;}
       skin(standard,true);const fur=standard.clone();fur.userData.layer=.5;fur.alphaToCoverage=true;skin(fur,false).scale.setScalar(1.05);
       const plane=new THREE.Mesh(new THREE.PlaneGeometry(10,10),standard);plane.rotation.x=-Math.PI/2;plane.receiveShadow=true;scene.add(plane);
-      const objects=[];scene.traverse(o=>{if(o.material)objects.push([o,o.castShadow,o.receiveShadow,o.onBeforeShadow,o.onBeforeRender]);});
+      const objects=[];scene.traverse(o=>{if(o.material)objects.push([o,o.castShadow,o.receiveShadow,o.onBeforeShadow,o.onBeforeRender,o.onAfterRender]);});
       const lightMask=sun.layers.mask, target=new THREE.WebGLRenderTarget(96,64), warm=makeWarmTarget(true);
       function image(){r.setRenderTarget(target);r.render(scene,camera);const a=new Uint8Array(96*64*4);r.readRenderTargetPixels(target,0,0,96,64,a);return a;}
       const before=image(),report={};let stage='',error='',failThisView=false;const render=r.render.bind(r);
@@ -38,10 +39,10 @@ async function main() {
         const secondCamera=camera.clone();secondCamera.position.x+=1;secondCamera.lookAt(1,.3,0);failThisView=true;
         await checkWorldShadows({renderer:r,scene,camera:secondCamera,sun,target:warm,report,step:s=>stage=s,view:{x:1,y:0}});
       }catch(e){error=e.message;}
-      const restored=objects.every(([o,c,v,f,b])=>o.castShadow===c&&o.receiveShadow===v&&o.onBeforeShadow===f&&o.onBeforeRender===b)&&sun.layers.mask===lightMask&&r.getRenderTarget()===target&&r.shadowMap.autoUpdate===true;
+      const restored=objects.every(([o,c,v,f,b,a])=>o.castShadow===c&&o.receiveShadow===v&&o.onBeforeShadow===f&&o.onBeforeRender===b&&o.onAfterRender===a)&&sun.layers.mask===lightMask&&r.getRenderTarget()===target&&r.shadowMap.autoUpdate===true;
       let samePixels=false;if(!lose){const after=image();samePixels=before.every((v,i)=>v===after[i]);}
       const result={report,error,restored,samePixels};warm.dispose();target.dispose();sun.shadow.map?.dispose();r.dispose();return result;
-    };` }, bundle: true, minify: true, write: false });
+    };` }, bundle: true, minify: true, write: false, plugins: [receiverShadowPrograms()] });
   const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/html');res.end('<body><script>'+bundle.outputFiles[0].text+'</script>');});
   let browser;
   try {
@@ -61,6 +62,8 @@ async function main() {
       assert(check.probes.some(p=>p.name==='cast: skinned opaque'&&p.shadowDraws>0));
       assert(check.probes.some(p=>p.name==='receive: standard surfaces'&&p.receiverDraws>0));
       assert.equal(check.probes.find(p=>p.name==='surfaces: shadow receiving off').receiverDraws,0);
+      assert.equal(check.probes.find(p=>p.name==='surfaces: shadow receiving off').shadowFeatureDraws,0);
+      assert.equal(check.receiverOnlyPrograms,true);
       if(lose){assert.match(out.error,/context lost/i);assert(!check.complete);assert.equal(check.probes.at(-1).completed,false);}
       else{assert.equal(out.error,'');assert(out.samePixels,'original rendered pixels must be identical after temporary flags restore');assert(check.complete&&check.probes.every(p=>p.completed&&p.glError===0));}
       console.log('PASS actual world depth/color separation and restoration:',JSON.stringify({lose,probes:check.probes.length,samePixels:out.samePixels}));

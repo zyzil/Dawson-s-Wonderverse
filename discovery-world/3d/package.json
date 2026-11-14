@@ -14,7 +14,8 @@
     "test:shadow-check": "node tests/shadow-check.cjs",
     "test:gpu-work": "node tests/gpu-work.cjs",
     "test:shadow-preflight": "node tests/shadow-preflight.cjs",
-    "test:shadow-world": "node tests/shadow-world.cjs"
+    "test:shadow-world": "node tests/shadow-world.cjs",
+    "test:receiver-programs": "node tests/receiver-programs.cjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

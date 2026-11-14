@@ -4,13 +4,14 @@ Prioritized unfinished work, highest first. Take the top item that can be done w
 remove it here and record it in `DEVELOPMENT_LOG.md`. Add new findings (bugs, ideas, measurements that look wrong) as you go.
 
 ## Waiting for the user
-- **Pixel 10 Pro XL underground/later checks:** build 44 passed every
-  starting-view probe and six local views, then reset at (20, -6). Run build 45
-  `?graphics=full-basic-shadows&preflight=1&worldprobe=areas&trial=1` and copy
-  the failure report. It checks that underground view and the remaining local
-  views while preserving the successful initial sequence and completed-view
-  history. Standard/custom/fur receiving had zero starting-view draws and are
-  still unproved on the phone. Keep the confirmed shadow-free normal profile.
+- **Pixel 10 Pro XL receiver shader trial:** the latest run passed all depth
+  casting and reset on starting-view surfaces even with runtime receiving off.
+  The prior run passed that step, so location alone is not a reliable trigger.
+  Run build 46 Basic/preflight/area checks with `shadowcode=receivers`, which
+  truly removes the compiled shadow feature from nonreceivers. Copy the failure
+  report if it resets. Actual receivers retain real shadows. Keep the verified
+  shadow-free default until physical confirmation; exact driver cause remains
+  unknown and zero-draw groups remain unproved.
 - **Longer Pixel play session:** full detail without shadow maps is physically
   confirmed working and is now the normal Android profile. Check a longer play
   session and offline reopening when convenient. The precise failing GPU

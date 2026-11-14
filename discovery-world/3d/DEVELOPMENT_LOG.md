@@ -4,6 +4,40 @@ Completed changes and how each was tested, newest first. Each checkpoint says wh
 browser vs. a real iPhone). The routine and rules are in `CLAUDE.md`; unfinished work is in `NEXT_TASKS.md`; measurements
 are in `PERFORMANCE_LOG.md`.
 
+## Checkpoint: build 46 receiver-specific shadow shader variants
+- **New physical result:** build 45 reset at the starting view (5,0), aspect
+  0.5428921569, after all depth casting checks passed. The failed color batch
+  had 42 color draws and zero receiving draws (`surfaces: shadow receiving off`).
+  The earlier build 44 run completed that step, so do not treat underground as
+  a reliable or unique trigger. Mesh arrival timing/aspect also differ.
+- Installed r187 WebGLPrograms enables shadow shader chunks whenever renderer
+  shadows and a casting light exist, independently of object.receiveShadow.
+  WebGLRenderer still has active shadow samplers to bind when that uniform is
+  false. Thus the prior runtime-off probe did not eliminate compiled shadow
+  code or bindings; native sampling/driver specialization remains unisolated.
+- Add opt-in `shadowcode=receivers` for Basic shadows. A guarded esbuild adapter
+  modifies the pinned npm ESM renderer: include the shadow feature only for
+  actual receivers, retain the effective flag/mode in material program metadata,
+  and select the correct cached variant when receiving or mode changes. Shared
+  materials remain shared; shader variants use the existing shadow-feature cache
+  bit. Actual receivers and depth casting retain their original functionality.
+- The adapter requires exactly Three.js 0.187.0 and one exact match at each of
+  three sites, and fails a build if it is not applied exactly once. It never
+  edits node_modules. The standalone original tiny check remains unadapted.
+- Existing world probes with the new mode count draws whose selected program
+  includes the shadow feature, without extra per-draw GPU queries. Runtime-off
+  surface probes now require zero such draws. Preserve onAfterRender callbacks
+  as well as the earlier state snapshots. Old modes and normal Android/iPhone
+  graphics are unchanged; full detail, AA and 1536 shadow size stay enabled in
+  this explicit trial. Preserve HTML in `../backups/3D_build46_index.html`.
+- **Focused proof:** actual compiled uniforms disappear for nonreceivers and
+  remain for receivers; shared/custom/skinned materials, receiving toggles and
+  mode rollback produce identical pixels across 54 draw observations. The full
+  game uses the reported aspect in its new browser case; detailed validation
+  and timing are recorded in PERFORMANCE_LOG.md. The physical fix, exact driver
+  cause and full gameplay suite remain pending; keep draft and normal Android
+  on its verified shadow-free configuration.
+
 ## Checkpoint: build 45 underground and remaining local-view diagnostics
 - **Physical build 44 result:** all 13 starting-view probes passed. Actual depth
   draws: static 100, instanced 2, skinned 1, all casters 103. Receiving draws:

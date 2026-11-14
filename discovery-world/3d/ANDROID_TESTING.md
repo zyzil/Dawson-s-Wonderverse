@@ -1,5 +1,35 @@
 # Pixel 10 Pro test branch
 
+## Current result and compiled receiver-shader trial (build 46)
+
+Build 45 reset earlier than the prior run: all four real-world casting checks
+passed, then starting-view surfaces reset with **zero receiving draws**. The
+reported camera aspect is 0.5428921568627451. This step passed in build 44;
+view aspect and newly loaded meshes vary, so the failure is not established as
+underground-specific or purely deterministic.
+
+Three.js r187's runtime `receiveShadow=false` leaves shadow code and active
+samplers in the compiled program. This new opt-in mode removes those shader
+features for nonreceivers and keeps them for true receivers:
+
+<https://zyzil.github.io/Dawson-s-Wonderverse/discovery-world/3d/?graphics=full-basic-shadows&preflight=1&worldprobe=areas&shadowcode=receivers&trial=1&build=46>.
+
+It preserves original surface materials, real shadow casting/receiving, full
+resolution, 1536 map size and antialiasing. The existing preflight and six-view
+checks run with the new variants. If it resets, use **Copy graphics report**.
+`shadowFeatureDraws` records how many color draws selected a program with the
+compiled shadow feature; it must be zero for the runtime-off surface probes.
+This metadata is not a per-material rendered-pixel test. Actual active sampler
+removal and pixel preservation are verified separately in the desktop tests.
+
+The build uses three guarded substitutions in the pinned npm Three.js 0.187.0
+ESM renderer and tracks effective flags/mode to select cached programs correctly
+for shared materials and runtime changes. It fails closed on dependency drift;
+node_modules stays untouched. Omit `shadowcode=receivers` for the original path.
+Normal Android retains its confirmed shadow-free profile. This is a candidate
+compatibility change, not a claimed completed phone fix. Force-stop Chrome first
+if the prior reset left graphics blocked.
+
 ## Current physical result and area checks (build 45)
 
 Build 44 completed all 13 starting-view checks on the Pixel, including the
@@ -311,6 +341,7 @@ CHROMIUM_PATH=/usr/bin/chromium npm run test:shadow-check
 CHROMIUM_PATH=/usr/bin/chromium npm run test:gpu-work
 CHROMIUM_PATH=/usr/bin/chromium npm run test:shadow-preflight
 CHROMIUM_PATH=/usr/bin/chromium npm run test:shadow-world
+CHROMIUM_PATH=/usr/bin/chromium npm run test:receiver-programs
 ```
 
 The Android suite checks portrait image pixels, old blank portrait-cache recovery,
