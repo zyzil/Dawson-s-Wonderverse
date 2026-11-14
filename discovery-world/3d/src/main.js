@@ -249,11 +249,11 @@ const kingdom = initKingdom(G, { scene, Sound, burst: (x, y, z, c, n, sp) => bur
 // (build 29) the new neighbourhoods past the rainbow gate: streamed in as you come near
 const sea = initSea(G, { scene, Sound, player, toast: m => toast(m), discover: (id, m) => discover(id, m), burst: (...a) => burst(...a), flash: () => { world.flash = 1; }, snap: () => snapCamera(), compile: g => compileGroup(g) }); G.deepSea = sea; // (build 43: the deep pool and the underwater world)
 // (build 45) the space rocket: the Moon, the planets and Pluto, with their real gravity
-const ROCKET_PAD = 698;
-const space = initSpace(G, { scene, Sound, player, toast: m => toast(m), discover: (id, m) => discover(id, m), burst: (...a) => burst(...a), keysHeld: () => keys.left || keys.right, flash: () => { world.flash = 1; }, snap: () => snapCamera(), compile: g => compileGroup(g), camX: () => camT.x,
+const ROCKET_PAD = 686;
+const space = initSpace(G, { registerRocket: (...a) => registerRocket(...a), scene, Sound, player, toast: m => toast(m), discover: (id, m) => discover(id, m), burst: (...a) => burst(...a), keysHeld: () => keys.left || keys.right, flash: () => { world.flash = 1; }, snap: () => snapCamera(), compile: g => compileGroup(g), camX: () => camT.x,
   openPicker: () => openRocket(), home: () => { const P = player; world.flash = 1; P.layer = ''; P.ride = null; P.x = ROCKET_PAD + 2.5; P.y = 0; P.z = 0; P.vx = P.vy = 0; P.grounded = true; expansion.buildNow(ROCKET_PAD); snapCamera(); Sound.chime(); toast('🌍 Home to planet Earth!'); saveSoon(); } });
 G.space = space;
-const expansion = initExpansion(G, { scene, Sound, world, player, MOBILE, toSky: () => G.toSky(), rocket: () => openRocket(), event: e => adventures?.event(e), catch: () => adventures?.catch(), gallery: () => adventures?.gallery(), getKeys: () => keys, startSlide: path => { if (!player.ride) startSlide(path); }, makeTree, burst: (x, y, z, c, n, sp) => burst(x, y, z, c, n, sp), discover: (id, msg) => discover(id, msg), toast: m => toast(m), saveSoon: () => saveSoon(), compile: g => compileGroup(g), warm: g => warmGroup(g), goHome: () => travel(TRAVEL[0]), travelTo: (x, icon, name) => travel([icon, name, x]) });
+const expansion = initExpansion(G, { registerRocket: (...a) => registerRocket(...a), scene, Sound, world, player, MOBILE, toSky: () => G.toSky(), rocket: () => openRocket(), event: e => adventures?.event(e), catch: () => adventures?.catch(), gallery: () => adventures?.gallery(), getKeys: () => keys, startSlide: path => { if (!player.ride) startSlide(path); }, makeTree, burst: (x, y, z, c, n, sp) => burst(x, y, z, c, n, sp), discover: (id, msg) => discover(id, msg), toast: m => toast(m), saveSoon: () => saveSoon(), compile: g => compileGroup(g), warm: g => warmGroup(g), goHome: () => travel(TRAVEL[0]), travelTo: (x, icon, name) => travel([icon, name, x]) });
 G.expansion = expansion;
 
 // ---------------- bubbles ----------------
@@ -339,6 +339,7 @@ function updateRide(dt) {
     if (R.u >= 1) { const e = path.getPointAt(1); P.x = e.x + .5; P.y = Math.max(0, e.y - .55); P.z = e.z; endRide(4.5, 3); P.facing = 1; burst(P.x, .5, P.z, ['#fff', '#ffe36e', '#9fe6ff'], 16, 2.5); Sound.boing(); return; }
     path.getPointAt(R.u, V); P.x = V.x; P.y = V.y - .62; P.z = V.z; const tg = path.getTangentAt(R.u); P.facing = tg.x >= 0 ? 1 : -1; P.vx = 6 * P.facing;
     if (Math.random() < dt * 25) burst(P.x - tg.x * .6, P.y + .3, P.z - tg.z * .6, ['#fff', '#ffe36e', '#9fe6ff'], 1, .6);
+  } else if (R.type === 'rocket') { rocketRide(dt, R);
   } else if (R.type === 'kart' || R.type === 'train') {
     // (moved by kart.js / train.js)
   } else if (R.type === 'whale') {
@@ -444,28 +445,130 @@ G.startClimb = fromBottom => { const P = player, L = SKY.ladder; if (P.ride || P
 // (build 45) THE ROCKET MENU: big round planet pictures (no words to read). Tap one: the voice says its name, a
 // countdown, and off you fly. Earth (first) takes you home to the launch pad.
 const ROCKET_NAMES = { earth: 'Earth', moon: 'the Moon', mercury: 'Mercury', venus: 'Venus', mars: 'Mars', jupiter: 'Jupiter', saturn: 'Saturn', uranus: 'Uranus', neptune: 'Neptune', pluto: 'Pluto' };
-let rocketPanel = null, launching = false;
+let rocketPanel = null, launching = false, blastBtn = null;
+// (build 48) A REAL ROCKET RIDE. PAW (or a tap) at the rocket: she walks up and climbs in, and her face shows in the round
+// window. The planet pictures come up; after she picks one, a BIG RED BUTTON appears. Pressing it starts the countdown
+// (rumble, smoke), then the rocket lifts off the pad on a flame and the camera follows it up into the sky. At the other end
+// the rocket comes down onto that pad with its flame, and she climbs out. JUMP (or ✖) climbs out before take-off.
+G.rockets = {};
+function registerRocket(key, g, win, x, layer, baseY) {
+  g.traverse(o => { o.userData.dynamic = true; }); // (it moves: never part of a scenery slice)
+  if (!g.userData.flame) { const fl = new THREE.Group(); fl.position.y = -.05; fl.visible = false; g.add(fl);
+    const outer = new THREE.Mesh(new THREE.ConeGeometry(.75, 2.6, 18), toy('#ff8a1e', { em: '#ff6a00', ei: 1.4 })); outer.rotation.x = Math.PI; outer.position.y = -1.3; fl.add(outer);
+    const inner = new THREE.Mesh(new THREE.ConeGeometry(.42, 1.6, 14), toy('#fff2a0', { em: '#ffe36e', ei: 1.6 })); inner.rotation.x = Math.PI; inner.position.y = -.8; fl.add(inner);
+    fl.traverse(o => { o.userData.dynamic = true; }); g.userData.flame = fl; }
+  G.rockets[key] = { g, win, x, layer, baseY, flame: g.userData.flame };
+}
+const inScene = o => { while (o.parent) o = o.parent; return o === scene; };
+const faceTex = {};
+function showFace(r, on) {
+  if (!r) return; const g = r.g; if (!on) { if (g.userData.face) g.userData.face.visible = false; return; }
+  const k = player.creature, src = portraits[k]; if (!src) return;
+  if (!faceTex[k]) { faceTex[k] = new THREE.TextureLoader().load(src); faceTex[k].colorSpace = THREE.SRGBColorSpace; }
+  if (!g.userData.face) { const f = new THREE.Sprite(new THREE.SpriteMaterial({ map: faceTex[k] })); f.scale.set(.7, .7, 1); f.position.copy(r.win.position); f.position.z += .42; f.userData.dynamic = true; g.add(f); g.userData.face = f; }
+  g.userData.face.material.map = faceTex[k]; g.userData.face.visible = true;
+}
+function nearRocket() { const P = player; for (const k in G.rockets) { const r = G.rockets[k]; if ((r.layer || '') !== P.layer || !inScene(r.g) || Math.abs(r.x - P.x) > 7 || Math.abs(P.y - r.baseY) > 3) continue; if (P.layer === 'space' && k !== space.here()) continue; return k; } return null; }
+const seated = () => player.ride && player.ride.type === 'rocket' ? player.ride : null;
+const RK = TEST ? { board: .3, count: .5, lift: .7, land: .5 } : { board: .9, count: 3.3, lift: 3.4, land: 2.8 }; // seconds (wall clock: the same on a slow or fast screen)
+const rkNow = () => performance.now() / 1000;
+function boardRocket(key, quick) {
+  const P = player, r = G.rockets[key]; if (!r) return;
+  G.walkTo = null; keys.left = keys.right = false;
+  P.ride = { type: 'rocket', key, phase: 'board', t0: rkNow() - (quick ? RK.board : 0), x0: P.x, z0: P.z, y0: P.y }; P.vx = P.vy = 0; P.grounded = true;
+  Sound.tone(500, .25, 'triangle', .04, 1.5); discover('rocketin', 'You climbed into the rocket! Pick a planet, then press the big red button.');
+  if (quick) rocketRide(0, P.ride);
+}
+function climbOut(r) {
+  const P = player; G.playerHidden = false; hideBlast(); if (rocketPanel) rocketPanel.classList.remove('show');
+  if (r) { showFace(r, false); r.flame.visible = false; r.g.position.y = r.baseY; P.x = r.x + 2.5; P.y = r.layer === 'space' ? 0 : groundUnder(r.x + 2.5, r.baseY + 1); }
+  P.ride = null; P.z = 0; P.vx = P.vy = 0; P.grounded = true; P.jumps = 0; P.facing = 1; G.camLift = 0;
+}
+function hideBlast() { if (blastBtn) blastBtn.classList.remove('show'); }
+function showBlast(id) {
+  if (!blastBtn) { blastBtn = document.createElement('button'); blastBtn.id = 'blastBtn'; blastBtn.setAttribute('aria-label', 'Blast off'); blastBtn.innerHTML = '<i></i><b></b>'; document.body.appendChild(blastBtn);
+    blastBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); Sound.unlocked = true; blastOff(); }); }
+  const pl = id === 'earth' ? ['#5fa8ff', '#2f6fd0'] : space.places.find(p => p[0] === id)[1];
+  blastBtn.querySelector('b').style.background = `radial-gradient(circle at 35% 30%, ${pl[0]}, ${pl[1]})`; blastBtn.className = 'show ' + id;
+}
+G.blastOff = blastOff;
+function blastOff() {
+  const R = seated(); if (!R || R.phase !== 'in' || !R.dest || launching) return;
+  hideBlast(); launching = true; R.phase = 'count'; R.t0 = rkNow(); R.n = 3;
+  Sound.click(); Sound.tone(180, .5, 'square', .03, .9); voice.speak('Three... two... one... blast off!'); toast('🚀 3');
+  discover('blastoff', 'Press the big red button to blast off!');
+}
+function rocketRide(dt, R) {
+  const P = player, r = G.rockets[R.key]; if (!r || !inScene(r.g)) { launching = false; climbOut(null); return; }
+  const g = r.g, t = rkNow() - R.t0, gz = g.position.z;
+  if (R.phase === 'board') { // walk up to the door and hop in
+    const k = Math.min(1, t / RK.board); P.x = R.x0 + (r.x - R.x0) * k; P.z = R.z0 + (gz + 1.05 - R.z0) * k; P.y = R.y0 + (r.baseY + .2 - R.y0) * k + Math.sin(k * Math.PI) * .8; P.facing = r.x >= R.x0 ? 1 : -1;
+    if (k >= 1) { R.phase = 'in'; G.playerHidden = true; showFace(r, true); Sound.chime(); burst(r.x, r.baseY + 3.6, gz + 1, ['#fff3a6', '#ffffff', '#9fe6ff'], 10, 1.6); showPicker(); }
+    return;
+  }
+  P.x = r.x; P.y = r.baseY; P.z = gz + 1.05; P.vx = P.vy = 0; P.grounded = true;
+  if (R.phase === 'in') return;
+  if (R.phase === 'count') { // rumble and smoke on the pad, louder each second
+    const n = 3 - Math.floor(t / (RK.count / 3)); if (n < R.n && n > 0) { R.n = n; toast('🚀 ' + n); Sound.tone(180 + (3 - n) * 60, .4, 'square', .03, .9); }
+    G.shake = Math.max(G.shake || 0, .25 + t / RK.count * .6);
+    if (Math.random() < dt * 14) burst(r.x + (Math.random() - .5) * 2.6, r.baseY + .3, gz + .8, ['#ffffff', '#e4e4ee', '#c9c9d6'], 3, 2.2);
+    r.flame.visible = t > RK.count * .66; if (r.flame.visible) r.flame.scale.set(.5, .35 + Math.random() * .15, .5);
+    if (t >= RK.count) { R.phase = 'lift'; R.t0 = rkNow(); R.v = 0; R.lt = rkNow(); toast('🚀 Blast off!'); Sound.whoosh(); Sound.tone(110, 1.6, 'sawtooth', .05, 2.2); burst(r.x, r.baseY + .4, gz + .8, ['#ffd23f', '#ff9a2e', '#ffffff'], 26, 4); }
+    return;
+  }
+  if (R.phase === 'lift') { // up off the pad on a long flame, faster and faster; the camera rides along
+    const now = rkNow(), st = Math.min(.1, now - R.lt); R.lt = now; R.v += (3 + t * 14) * st; g.position.y += R.v * st;
+    r.flame.visible = true; r.flame.scale.set(1, 1 + Math.random() * .35 + Math.min(1, t), 1);
+    G.camLift = g.position.y - r.baseY; G.shake = Math.max(G.shake || 0, .9 - t * .2);
+    if (Math.random() < dt * 20) burst(r.x + (Math.random() - .5) * .6, g.position.y - 1, gz + .8, ['#ffd23f', '#ff9a2e', '#ffffff', '#ff5a3c'], 3, 2.5);
+    if (Math.random() < dt * 10) burst(r.x + (Math.random() - .5) * 3, r.baseY + .3, gz + .8, ['#ffffff', '#e4e4ee'], 3, 2.6);
+    if (t >= RK.lift) arrive(R, r);
+    return;
+  }
+  if (R.phase === 'land') { // down onto the new pad, slowing to a gentle touchdown
+    const k = Math.min(1, t / RK.land), h = 26 * (1 - k) * (1 - k); g.position.y = r.baseY + h; G.camLift = h;
+    r.flame.visible = true; r.flame.scale.set(.8, .6 + Math.random() * .3 + (1 - k) * .4, .8);
+    if (h < 3 && Math.random() < dt * 14) burst(r.x + (Math.random() - .5) * 3, r.baseY + .3, gz + .8, ['#ffffff', '#e4e4ee', '#c9c9d6'], 3, 2.2);
+    if (k >= 1) { G.shake = .5; Sound.boing(); burst(r.x, r.baseY + .3, gz + .8, ['#ffffff', '#e4e4ee', '#ffd23f'], 18, 3); climbOut(r); }
+  }
+}
+function arrive(R, r) {
+  const dest = R.dest; r.g.position.y = r.baseY; r.flame.visible = false; showFace(r, false); G.camLift = 0; launching = false; G.playerHidden = false;
+  player.ride = null; if (dest === 'earth') space.goHome(); else space.goTo(space.places.findIndex(p => p[0] === dest)); saveSoon();
+  const r2 = G.rockets[dest]; if (!r2 || !inScene(r2.g)) return; // (lands beside the pad without the ride if the rocket isn't there)
+  const P = player; P.ride = { type: 'rocket', key: dest, phase: 'land', t0: rkNow() }; G.playerHidden = true; showFace(r2, true);
+  P.x = r2.x; P.y = r2.baseY; P.z = r2.g.position.z + 1.05; r2.g.position.y = r2.baseY + 26; G.camLift = 26; snapCamera(); camT.y = P.y + 26;
+}
 function openRocket() {
   if (launching || G.activityOpen) return;
+  const P = player, R = seated();
+  if (!R) { const k = !P.ride && !P.stair ? nearRocket() : null; if (k) { boardRocket(k); return; } }
+  else if (R.phase !== 'in') return;
+  showPicker();
+}
+function showPicker() {
   if (!rocketPanel) { rocketPanel = document.createElement('div'); rocketPanel.id = 'rocketPanel';
     const tiles = [['earth', ['#5fa8ff', '#2f6fd0']], ...space.places.map(p => [p[0], p[1]])];
     rocketPanel.innerHTML = `<div class="mpIn"><button class="mpX" aria-label="close">✖</button><div class="rkGrid">${tiles.map(([id, [a, b]]) => `<button class="rkT ${id}" data-id="${id}" aria-label="${ROCKET_NAMES[id]}"><i style="background:radial-gradient(circle at 35% 30%, ${a}, ${b})"></i></button>`).join('')}</div></div>`;
     document.body.appendChild(rocketPanel);
-    rocketPanel.querySelector('.mpX').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); rocketPanel.classList.remove('show'); Sound.click(); });
+    rocketPanel.querySelector('.mpX').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); rocketPanel.classList.remove('show'); Sound.click(); const R = seated(); if (R && R.phase === 'in') climbOut(G.rockets[R.key]); });
     rocketPanel.querySelectorAll('.rkT').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); Sound.unlocked = true; launchTo(b.dataset.id); })); }
   rocketPanel.querySelectorAll('.rkT').forEach(b => b.classList.toggle('here', b.dataset.id === (player.layer === 'space' ? space.here() : 'earth')));
   rocketPanel.classList.add('show'); Sound.click(); voice.speak('Where shall we fly? Tap a planet!'); discover('rocketmenu');
 }
 G.openRocket = openRocket;
-function launchTo(id) {
+// picking a planet: sitting in a rocket, the big red button comes up; (with no rocket nearby: straight off, as before)
+function launchTo(id, go) {
   if (launching) return; if (rocketPanel) rocketPanel.classList.remove('show');
   const atHome = player.layer !== 'space'; if ((id === 'earth' && atHome) || id === space.here()) { voice.speak(`We're already on ${ROCKET_NAMES[id]}!`); return; }
+  if (go && !seated() && !player.ride) { const k = nearRocket(); if (k) boardRocket(k, true); }
+  const R = seated(); if (R) { if (R.phase !== 'in') return; R.dest = id; showBlast(id); if (rocketPanel) rocketPanel.classList.remove('show'); if (go) blastOff(); else { voice.speak(`To ${ROCKET_NAMES[id]}! Press the big red button!`); Sound.twinkle(); } return; }
   launching = true; voice.speak(`To ${ROCKET_NAMES[id]}! Three, two, one, blast off!`); toast('🚀 3... 2... 1... Blast off!');
   Sound.tone(220, .6, 'sawtooth', .04, 1.8); setTimeout(() => Sound.whoosh(), 400); G.shake = 1.2;
   for (let k = 0; k < 8; k++) setTimeout(() => burst(player.x, .5, player.z - 1, ['#ffd23f', '#ff9a2e', '#ffffff'], 6, 2.5), k * 150);
   setTimeout(() => { launching = false; if (id === 'earth') space.goHome(); else space.goTo(space.places.findIndex(p => p[0] === id)); saveSoon(); }, TEST ? 200 : 1600);
 }
-G.launchTo = launchTo;
+G.launchTo = id => launchTo(id, true); // (tests: pick and press the button in one go)
 // (build 43) through the rainbow gate at the top of the stairs at either end of the world: into the Sky Kingdom
 G.toSky = () => { const P = player; world.flash = 1; P.layer = ''; P.x = 42; P.y = SKY.y + .05; P.z = SKY.z; P.vx = P.vy = 0; P.grounded = true; P.jumps = 0; P.facing = 1; snapCamera(); Sound.whoosh(); Sound.chime(); toast('🌈 Welcome to the Sky Kingdom!'); discover('skygate', 'The rainbow stairs lead up to the Sky Kingdom!'); saveSoon(); };
 G.tapWhale = () => { const W = G.whale, P = player; if (!P.ride && P.layer === '' && P.y > SKY.y - .6 && Math.abs(P.x - W.g.position.x) < 10) { P.ride = { type: 'whale', u: 0 }; P.vx = P.vy = 0; Sound.whoosh(); discover('whaleride', 'You are riding the sky whale! JUMP to hop off.'); } W.spout = 2.4; Sound.withMusic(() => [0, 4, 7, 4, 2, 0].forEach((n, i) => Sound.bell(NOTES[n % 8] / 2, .05, i * .22))); discover('whale', 'The sky whale sings you a song!'); };
@@ -555,6 +658,7 @@ addEventListener('blur', () => { if (stick) stickEnd(); keys.left = keys.right =
 
 function jump() {
   const P = player; if (!started || G.activityOpen || P.stair) return;
+  if (P.ride && P.ride.type === 'rocket') { if (P.ride.phase === 'in') { climbOut(G.rockets[P.ride.key]); Sound.jump(1); } return; } // (build 48: JUMP climbs out before take-off)
   if (P.ride && P.ride.type === 'climb') { P.ride.boost = .25; return; }
   if (P.ride && P.ride.type === 'train') { train.whistle(); return; }
   if (P.ride && P.ride.type === 'kart') { if (P.ride.hop === 0) { P.ride.hopV = 7.5; Sound.boing(); discover('kartjump', 'Kart jump!'); } return; }
@@ -564,6 +668,7 @@ function jump() {
 }
 function doAction() {
   const P = player; if (!started || G.activityOpen || P.stair) return;
+  if (P.ride && P.ride.type === 'rocket') { if (P.ride.phase === 'in') { if (P.ride.dest) blastOff(); else showPicker(); } return; } // (build 48: PAW in the rocket: the planets, or the red button once one is picked)
   if (P.ride && P.ride.type === 'kart') { parkKart(); return; }
   if (P.ride && P.ride.type === 'train') { train.hopOff(); return; }
   if (P.ride) { jump(); return; }
@@ -766,14 +871,14 @@ function updateCamera(dt) {
   const P = player;
   camT.look += ((P.ride ? (P.ride.type === 'train' ? P.facing * 2.6 : 0) : P.facing * 1.8) - camT.look) * ease(dt, 3);
   camT.x += (camTargetX() - camT.x) * ease(dt, 8); // (build 25: the camera keeps up more tightly, so the controls don't feel delayed)
-  camT.y += (P.y - camT.y) * ease(dt, (P.grounded ? 4 : 2));
+  camT.y += (P.y + (G.camLift || 0) - camT.y) * ease(dt, G.camLift ? 6 : (P.grounded ? 4 : 2)); camT.rk = (camT.rk ?? 0) + ((P.ride && P.ride.type === 'rocket' ? 1 : 0) - (camT.rk ?? 0)) * ease(dt, 2); // (build 48: the camera rides up with the rocket, a little further back)
   const y = camT.y;
   // build 16: near the castle the camera steps back and looks up, so you can see the whole castle
   // (also a little at the Marble Machine, so its top ramps stay clear of the buttons)
   const castleK = P.layer === '' && !P.ride ? Math.max(Math.max(0, 1 - Math.abs(P.x - KINGDOM.castle) / 9), Math.max(0, 1 - Math.abs(P.x - 332) / 7) * .45, Math.max(0, 1 - Math.abs(P.x - (BUILD.x0 + BUILD.cols * BUILD.cw / 2)) / 8) * .7) : 0; /* (build 43: and at the Block Builder, so the whole wall shows) */ camT.cz = (camT.cz ?? 0) + (castleK - (camT.cz ?? 0)) * ease(dt, 1.5);
   const kz = P.ride && (P.ride.type === 'kart' || P.ride.type === 'train' || P.ride.type === 'whale') ? P.z : 0; camT.z = (camT.z ?? 0) + (kz - (camT.z ?? 0)) * ease(dt, 3);
   camT.wz = (camT.wz ?? 0) + ((P.ride && P.ride.type === 'whale' ? 1 : 0) - (camT.wz ?? 0)) * ease(dt, 1.2); // (build 43: flying the whale: the camera pulls back and looks down at the world below)
-  camera.position.set(camT.x, y + 2.15 + Math.max(0, -camT.z) * .25 + camT.cz * 1.2 + camT.wz * 3, CAM_DIST + camT.z + camT.cz * 3.2 + camT.wz * 10); camera.lookAt(camT.x, y + 1.15 + camT.cz * 2.4 - camT.wz * 3.5, camT.z - camT.cz * 2);
+  camera.position.set(camT.x, y + 2.15 + Math.max(0, -camT.z) * .25 + camT.cz * 1.2 + camT.wz * 3 + camT.rk * 1.6, CAM_DIST + camT.z + camT.cz * 3.2 + camT.wz * 10 + camT.rk * 5); camera.lookAt(camT.x, y + 1.15 + camT.cz * 2.4 - camT.wz * 3.5 + camT.rk * 2, camT.z - camT.cz * 2 - camT.rk * 2);
   if (G.shake > 0) { G.shake = Math.max(0, G.shake - dt); camera.position.x += (Math.random() - .5) * G.shake * .5; camera.position.y += (Math.random() - .5) * G.shake * .5; } // a little stomp shake
   if (G.camOverride) { const o = G.camOverride; camera.position.set(...o.pos); camera.lookAt(...o.look); } // (close-up camera for checking models)
   sky.position.x = camT.x; // the sky dome travels with you (the world is wider than the dome now)
@@ -1044,8 +1149,8 @@ function frame() {
   const a = Math.min(1, acc * 60), far = Math.abs(P.x - prevP.x) > 2 || Math.abs(P.y - prevP.y) > 2; // (no blending across teleports)
   const ix = far ? P.x : prevP.x + (P.x - prevP.x) * a, iy = far ? P.y : prevP.y + (P.y - prevP.y) * a, iz = far ? P.z : prevP.z + (P.z - prevP.z) * a;
   { const sx = P.x, sy = P.y, sz = P.z; P.x = ix; P.y = iy; P.z = iz; updateCamera(raw); P.x = sx; P.y = sy; P.z = sz; }
-  creature.root.position.set(ix, iy, iz);
-  { const gy = P.ride ? P.y : groundUnder(P.x, P.y), hgt = Math.max(0, P.y - gy), k = Math.max(.25, 1 - hgt / 4); blob.visible = !(P.ride && (P.ride.type === 'slide')) && !P.swim; blob.position.set(P.x, gy + .015, P.z); blob.scale.setScalar(k); shadowMat.opacity = k; }
+  creature.root.position.set(ix, iy, iz); creature.root.visible = !G.playerHidden;
+  { const gy = P.ride ? P.y : groundUnder(P.x, P.y), hgt = Math.max(0, P.y - gy), k = Math.max(.25, 1 - hgt / 4); blob.visible = !(P.ride && (P.ride.type === 'slide')) && !P.swim && !G.playerHidden; blob.position.set(P.x, gy + .015, P.z); blob.scale.setScalar(k); shadowMat.opacity = k; }
   { const sliding = P.ride && (P.ride.type === 'slide' || P.ride.type === 'kart' || P.ride.type === 'train' || P.ride.type === 'whale'), k = Math.min(1, dt * 10), sy = P.crawl ? .6 : sliding ? .62 : 1, sx = P.crawl ? 1.15 : sliding ? .62 : 1; creature.root.scale.set(lerp(creature.root.scale.x, sx, k), lerp(creature.root.scale.y, sy, k), lerp(creature.root.scale.z, sx, k)); }
   creature.update(dt, { vx: P.vx, vy: P.vy, grounded: P.grounded || !!P.ride, seated: !!P.ride && P.ride.type !== 'slide', facing: P.facing, happy: P.happy });
   P.happy = Math.max(0, P.happy - dt);
@@ -1264,7 +1369,7 @@ window.__DDW3 = { THREE,
 renderer.info.autoReset = false;
 let lastFrameAt = 0;
 G.doAction = doAction; G.soundOn = () => Sound.on;
-const GAME_BUILD = '47'; G.build = GAME_BUILD;
+const GAME_BUILD = '48'; G.build = GAME_BUILD;
 const perfMon = initPerf({ renderer, G, world, player, keys, fluffs, post, sun, doAction, build: GAME_BUILD }); G.perfMon = perfMon;
 {
   const btn = document.createElement('button'); btn.className = 'pill'; btn.id = 'gearBtn'; btn.setAttribute('aria-label', 'settings for grown-ups (hold)'); btn.textContent = '⚙️';

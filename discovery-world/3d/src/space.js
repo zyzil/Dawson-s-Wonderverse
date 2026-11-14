@@ -60,7 +60,7 @@ export function initSpace(G, api) {
       for (let k = 0; k < 22; k++) { const puff = ball(X + 3 + k * 5, .1, -4 - (k % 4) * 3, 1 + (k % 3) * .5, BANDS[(k + 1) % 4], { r: .9 }); puff.scale.y = .35; U.push((dt, t) => { puff.position.x += Math.sin(t * .3 + k) * dt * .3; }); }
     }
     // the parked rocket (tap it to fly somewhere else, or home) and the striped metre pole
-    const rk = new THREE.Group(); rk.position.set(X + 8, 0, -2.4); add(rk); rocketModel(rk); rk.traverse(o => { if (o.isMesh) o.userData.tap = () => api.openPicker(); }); G.taps.push(rk);
+    const rk = new THREE.Group(); rk.position.set(X + 8, 0, -2.4); add(rk); const rwin = rocketModel(rk); api.registerRocket && api.registerRocket(id, rk, rwin, X + 8, 'space', 0); rk.traverse(o => { if (o.isMesh) o.userData.tap = () => api.openPicker(); }); G.taps.push(rk);
     G.interact.push({ x: X + 8, y: 0, layer: 'space', disc: 'space_' + id, run: () => api.openPicker(), hintY: 4.6 });
     for (let m = 0; m < 30; m++) box(X + 20, m, -1.6, .25, 1, .25, m % 2 ? '#ffffff' : '#ff4f9a', { r: .5 });
     // ---------- the ALIENS: a different kind on every planet; tap one and it says hello in its own voice ----------
@@ -183,8 +183,9 @@ export function initSpace(G, api) {
     const body = new THREE.Mesh(new THREE.CylinderGeometry(.9, 1, 4.4, 28), toy('#ffffff', { r: .3 })); body.position.y = 2.6; rk.add(body);
     const nose = new THREE.Mesh(new THREE.ConeGeometry(.9, 1.7, 28), toy('#ff4f9a')); nose.position.y = 5.65; rk.add(nose);
     for (let i = 0; i < 3; i++) { const f = new THREE.Mesh(new THREE.BoxGeometry(.18, 1.4, 1.1), toy('#2fa8ff')); const a = i * 2.09; f.position.set(Math.cos(a) * .95, .9, Math.sin(a) * .95); f.rotation.y = -a; rk.add(f); }
-    const win = new THREE.Mesh(new THREE.SphereGeometry(.36, 16, 10), toy('#9fe6ff', { em: '#9fe6ff', ei: .5 })); win.position.set(0, 3.6, .78); rk.add(win);
+    const win = new THREE.Mesh(new THREE.SphereGeometry(.36, 16, 10), toy('#9fe6ff', { em: '#9fe6ff', ei: .5 })); win.position.set(0, 3.6, .78); rk.add(win); rk.userData.win = win;
     const band = new THREE.Mesh(new THREE.CylinderGeometry(.96, .96, .3, 28), toy('#ffd23f')); band.position.y = 1.6; rk.add(band);
+    return win;
   }
 
   // ---------- flying ----------

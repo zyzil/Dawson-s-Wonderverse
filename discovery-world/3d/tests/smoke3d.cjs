@@ -379,23 +379,34 @@ const UG_F = -6;
   await page.evaluate(() => { __DDW3.player.x = 3005; __DDW3.player.y = -1; __DDW3.keys.up = true; }); c = await waitFor(s => s.layer === '', 20000); await page.evaluate(() => { __DDW3.keys.up = false; });
   check('swim up to the top of the pool to climb out', c.layer === '' && Math.abs(c.x + 8) < 1, `layer=${c.layer} x=${c.x.toFixed(1)}`);
   // ---------- build 45: the space rocket, with each place's real gravity ----------
-  await teleport(700); await page.evaluate(() => __DDW3.G.expansion.buildNow(700)); await sleep(500);
-  await page.evaluate(() => __DDW3.G.openRocket()); await sleep(400);
+  await teleport(689); await page.evaluate(() => __DDW3.G.expansion.buildNow(689)); await sleep(500);
+  // (build 48) PAW beside the rocket climbs in (it used to blow the bubble fountain's bubbles: both stood at x 698)
+  { const t = await page.evaluate(() => __DDW3.G.actionTarget && __DDW3.G.actionTarget.disc); await press('#pawBtn');
+    const r = await page.evaluate(() => new Promise(res => { const t0 = performance.now(); const f = () => { const P = __DDW3.player; if ((P.ride && P.ride.phase === 'in' && document.querySelector('#rocketPanel.show')) || performance.now() - t0 > 30000) res({ ride: P.ride && P.ride.type + ':' + P.ride.phase, hidden: !!__DDW3.G.playerHidden, bubbles: __DDW3.world.disc.has('bubbles') }); else setTimeout(f, 50); }; f(); }));
+    check('PAW at the rocket: she climbs inside it (not bubbles) and the planet pictures come up', t === 'rocketmenu' && r.ride === 'rocket:in' && r.hidden, `target=${t} ride=${r.ride} hidden=${r.hidden}`); }
   { const n = await page.locator('#rocketPanel.show .rkT').count(); check('the rocket shows a picture for Earth, the Moon, every planet and Pluto', n === 10, `${n} pictures`); }
+  { await page.locator('#rocketPanel .rkT.moon').tap(); await sleep(300); const r = await page.evaluate(() => ({ btn: !!document.querySelector('#blastBtn.show'), layer: __DDW3.player.layer, ride: __DDW3.player.ride && __DDW3.player.ride.phase }));
+    check('picking the Moon shows the big red button (no flying yet)', r.btn && r.layer === '' && r.ride === 'in', JSON.stringify(r)); }
+  { await page.locator('#blastBtn').tap({ force: true }); /* (it pulses) */ const seen = await page.evaluate(() => new Promise(res => { const ph = new Set(); let top = 0; const t0 = performance.now(); const f = () => { const P = __DDW3.player, R = P.ride; if (R) ph.add(R.phase); const r = __DDW3.G.rockets.earth; if (r) top = Math.max(top, r.g.position.y - r.baseY); if (P.layer === 'space' || performance.now() - t0 > 60000) res({ ph: [...ph], top }); else requestAnimationFrame(f); }; f(); }));
+    check('the red button: countdown, then the rocket lifts off the pad with her inside', seen.ph.includes('count') && seen.ph.includes('lift') && seen.top > 1, `phases ${seen.ph.join(',')}, rose ${seen.top.toFixed(1)} m`); }
+  // (build 48) flying is now a real ride: wait until the rocket has landed at the place and she has climbed out
+  const flyTo = id => page.evaluate(id => { __DDW3.G.launchTo(id); return new Promise(res => { const t0 = performance.now(); const f = () => { const P = __DDW3.player, r = __DDW3.G.rockets[id]; if ((!P.ride && r && Math.abs(P.x - r.x) < 4 && P.layer === (id === 'earth' ? '' : 'space')) || performance.now() - t0 > 60000) res(); else setTimeout(f, 50); }; setTimeout(f, 50); }); }, id);
   // (the game records each jump's peak on every physics step: a Jupiter hop is over in a third of a second, faster than this slow test browser draws frames)
   const jumpPeak = async () => { await page.evaluate(() => { __DDW3.G.spaceLastJump = 0; }); await press('#jumpBtn'); return page.evaluate(() => new Promise(res => { const t0 = performance.now(); const f = () => { const h = __DDW3.G.spaceLastJump; if (h > 0 || performance.now() - t0 > 60000) res(h || 0); else setTimeout(f, 50); }; f(); })); };
-  { await page.locator('#rocketPanel .rkT.moon').tap(); c = await waitFor(s => s.layer === 'space', 20000); const g = await page.evaluate(() => __DDW3.G.spaceG);
+  { c = await waitFor(s => s.layer === 'space', 20000); const g = await page.evaluate(() => __DDW3.G.spaceG);
+    { const r = await page.evaluate(() => new Promise(res => { const t0 = performance.now(); const f = () => { const P = __DDW3.player; if (!P.ride || performance.now() - t0 > 30000) res({ ride: P.ride && P.ride.phase, hidden: !!__DDW3.G.playerHidden, x: P.x - __DDW3.G.rockets.moon.x }); else setTimeout(f, 50); }; f(); }));
+      check('on the Moon the rocket lands on its pad and she climbs out', !r.ride && !r.hidden && Math.abs(r.x - 2.5) < .5, JSON.stringify(r)); }
     check('fly to the Moon: real Moon gravity (1.62 / 9.81 of Earth\'s)', c.layer === 'space' && Math.abs(g - 1.62 / 9.81) < .001, `layer=${c.layer} g=${g && g.toFixed(3)}`);
     await sleep(800); const top = await jumpPeak(); check('on the Moon you jump about six times higher', top > 9, `jumped to ${top.toFixed(1)} m (Earth ≈ 1.8 m)`); }
-  { await page.evaluate(() => __DDW3.G.launchTo('jupiter')); await sleep(800); c = await waitFor(s => s.layer === 'space', 20000); await sleep(800); const top = await jumpPeak(); check('on Jupiter the strong gravity allows only tiny hops', top < 1.1 && top > .2, `jumped to ${top.toFixed(2)} m`); }
-  { await page.evaluate(() => __DDW3.G.launchTo('pluto')); await sleep(800); c = await waitFor(s => s.layer === 'space', 20000); const g = await page.evaluate(() => __DDW3.G.spaceG); check('Pluto has the weakest gravity of all (0.62 / 9.81)', Math.abs(g - .62 / 9.81) < .001, `g=${g.toFixed(3)}`); }
+  { await flyTo('jupiter'); c = await waitFor(s => s.layer === 'space', 20000); await sleep(800); const top = await jumpPeak(); check('on Jupiter the strong gravity allows only tiny hops', top < 1.1 && top > .2, `jumped to ${top.toFixed(2)} m`); }
+  { await flyTo('pluto'); c = await waitFor(s => s.layer === 'space', 20000); const g = await page.evaluate(() => __DDW3.G.spaceG); check('Pluto has the weakest gravity of all (0.62 / 9.81)', Math.abs(g - .62 / 9.81) < .001, `g=${g.toFixed(3)}`); }
   // (build 47) every planet is its own place: its own aliens and activities that fit it (tap them all on each one)
   { const found = [], missing = [];
-    for (const id of ['moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto']) { await page.evaluate(id => __DDW3.G.launchTo(id), id); await sleep(600); await waitFor(s => s.layer === 'space', 20000); await sleep(400);
+    for (const id of ['moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto']) { await flyTo(id); await waitFor(s => s.layer === 'space', 20000); await sleep(400);
       const r = await page.evaluate(id => { const its = __DDW3.G.interact.filter(i => i.layer === 'space' && i.x > __DDW3.G.spaceBounds[0] - 2 && i.x < __DDW3.G.spaceBounds[1] + 2 && i.disc && !String(i.disc).startsWith('space_')); its.forEach(i => i.run()); return { n: its.length, alien: __DDW3.world.disc.has('alien_' + id) }; }, id);
       (r.alien && r.n >= 3 ? found : missing).push(`${id}:${r.n}${r.alien ? '' : ' (no alien)'}`); }
     check('every planet has its own aliens and at least 2 activities of its own', missing.length === 0, (missing.length ? 'MISSING ' + missing.join(' ') + ' | ' : '') + found.join(' ')); }
-  { await page.evaluate(() => __DDW3.G.launchTo('earth')); await sleep(800); c = await waitFor(s => s.layer === '', 20000); check('fly home to Earth: back at the launch pad', c.layer === '' && Math.abs(c.x - 700.5) < 3, `layer=${c.layer} x=${c.x.toFixed(1)}`); }
+  { await flyTo('earth'); c = await waitFor(s => s.layer === '', 20000); check('fly home to Earth: back at the launch pad', c.layer === '' && Math.abs(c.x - 688.5) < 3, `layer=${c.layer} x=${c.x.toFixed(1)}`); }
   // the voice can be chosen by a grown-up (the test browser may have no voices: the panel must still work)
   check('the ⚙️ panel has a voice chooser', await page.evaluate(() => !!document.querySelector('#perfPanel .ppVoices') && typeof __DDW3.G.voice === 'object' ? true : !!document.querySelector('#perfPanel .ppVoices')));
   // ---------- build 27: the learning games work for a child who can't read ----------

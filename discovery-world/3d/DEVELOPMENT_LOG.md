@@ -4,6 +4,23 @@ Completed changes and how each was tested, newest first. Each checkpoint says wh
 browser vs. a real iPhone). The routine and rules are in `CLAUDE.md`; unfinished work is in `NEXT_TASKS.md`; measurements
 are in `PERFORMANCE_LOG.md`.
 
+## Checkpoint: build 48 — climb into the rocket, the big red button, a real lift-off
+- **The bug the family found:** PAW at the rocket blew bubbles. The Lab Gardens rocket (build 45) was placed at x 698, exactly on the bubble fountain. Both had PAW targets at 698, and the fountain's came first in the list. The rocket and its pad now stand at x 686, between the frog pal (678) and the fountain. `ROCKET_PAD` follows it, so flying home lands at 688.5.
+- **The rocket ride** is a new ride type in `main.js`, `P.ride = { type: 'rocket', phase }`:
+  - **board:** she walks to the door, hops in and disappears. Her portrait shows in the round window as a sprite; the sprite shader is already warmed, so it needs no new shader. Crown, wand and pets stay behind (`G.playerHidden`).
+  - **in:** the planet pictures appear. Picking one shows `#blastBtn`, a big pulsing red button with the chosen planet as a badge, and the voice says "Press the big red button!". PAW also presses it. JUMP or ✖ climbs out.
+  - **count:** a three-second 3-2-1 with rumble (shake), smoke from the pad and the flame flickering on.
+  - **lift:** the rocket accelerates up on a two-cone flame with sparks and smoke. The camera rides up with it, pulled back a little (`G.camLift`, `camT.rk`).
+  - **land:** at the destination the rocket starts 26 m up and slows to a gentle touchdown with its flame and a puff of smoke. Then she climbs out beside it.
+  - The timing uses the wall clock, so a slow screen doesn't stretch the ride.
+- **Every rocket registers itself:** Earth's in `expansion.js`, each planet's in `space.js` (`registerRocket`; it is marked dynamic so scenery slicing never hides it). Because of this the same ride works from every planet. If no rocket is near (the old test path), the picker still flies you straight there.
+- **Verified (desktop, software rendering):**
+  - A scripted run of PAW → in → Mars → red button → countdown → lift → landing → out → fly home → ✖ climbs out: no page errors, shader programs unchanged (103 at real settings, 138 in `?test`), and no slow shader waits measured around the flight.
+  - Screenshots at frozen moments of the countdown, lift-off, high flight and Moon landing.
+  - The button sits beside the rocket and overlaps no control at 844×390 or 1024×768.
+- **Smoke test:** new checks cover PAW entering the rocket (not bubbles), the red button appearing without flying, and the countdown then lift-off; plus landing and climbing out on the Moon. The planet tests now wait for the ride to finish (`flyTo`).
+- **Not yet tried on the real iPhone.**
+
 ## Checkpoint: build 47 — every planet its own place, with aliens; builds 46 fixes
 - **The family asked** to land on the gas giants too, with fitting activities and different aliens.
   - The gas giants now have walkable swirly cloud ground in their own colours. The voice says, kindly, that each is really made of gas; gravity is still the real 1-bar value.
