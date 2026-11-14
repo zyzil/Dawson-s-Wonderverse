@@ -71,7 +71,7 @@ export function initSpace(G, api) {
       mars: { name: 'Marslings', body: '#5fd36a', eye: 3, ant: 2, shape: 'classic', move: 'walk', note: 640, hi: 'Greetings, Earthling! Welcome to the red planet!' },
       jupiter: { name: 'Bloonies', body: '#ff9a5c', eye: 2, ant: 1, shape: 'balloon', move: 'float', note: 300, hi: 'Boom boom! We are big balloons from the biggest planet!' },
       saturn: { name: 'Ringlets', body: '#c9a6ff', eye: 2, ant: 0, shape: 'ringed', move: 'spin', note: 760, hi: 'Wheee! We spin like Saturn\'s rings!' },
-      uranus: { name: 'Rollers', body: '#4fd8d0', eye: 2, ant: 1, shape: 'cube', move: 'roll', note: 580, hi: 'Roll roll! On Uranus everything rolls on its side!' },
+      uranus: { name: 'Rollers', body: '#4fd8d0', eye: 2, ant: 0, shape: 'cube', move: 'roll', note: 580, hi: 'Roll roll! On Uranus everything rolls on its side!' },
       neptune: { name: 'Windies', body: '#5a82f0', eye: 2, ant: 0, shape: 'wisp', move: 'swoosh', note: 450, hi: 'Whoosh! The wind is so fast on Neptune!' },
       pluto: { name: 'Heartlings', body: '#ff9fd2', eye: 2, ant: 2, shape: 'heart', move: 'hop', note: 1000, hi: 'Hello, friend! We love our big icy heart!' },
     }[id];
@@ -82,7 +82,7 @@ export function initSpace(G, api) {
         if (AL.move === 'float') a.position.y = 1 + Math.sin(ph) * .4;
         if (AL.move === 'walk' || AL.move === 'scurry') { a.position.x = x0 + Math.sin(ph * (AL.move === 'scurry' ? 1.6 : .5)) * 2.5; b.position.y = Math.abs(Math.sin(ph * 6)) * .08; }
         if (AL.move === 'spin') a.rotation.y += dt * 3;
-        if (AL.move === 'roll') { a.position.x = x0 + Math.sin(ph * .6) * 3; b.rotation.z = -a.position.x * 1.2; }
+        if (AL.move === 'roll') { a.position.x = x0 + Math.sin(ph * .6) * 3; const r = -(a.position.x - x0) * 1.96; b.rotation.z = r; b.position.y = .4 * (Math.abs(Math.cos(r)) + Math.abs(Math.sin(r))) + .05; } // (build 48: it turns about its own middle and rises onto its corner, like a real box rolling; it used to swing half into the ground)
         if (AL.move === 'swoosh') { a.position.x = x0 + Math.sin(ph * .9) * 4; a.position.y = .8 + Math.sin(ph * 2) * .3; }
         a.scale.setScalar(1 + Math.sin(boing * 12) * boing * .25); }); }
     // ---------- things to do that fit each planet ----------
@@ -177,6 +177,8 @@ export function initSpace(G, api) {
     for (const x of ex) { S(A.eye === 1 ? .2 : .11, x, headY, .42, white); S(A.eye === 1 ? .1 : .055, x, headY, .52, dark); }
     if (A.shades) { const sh = new THREE.Mesh(new THREE.BoxGeometry(.5, .12, .05), dark); sh.position.set(0, headY, .5); body.add(sh); }
     for (let k = 0; k < A.ant; k++) { const x = A.ant === 1 ? 0 : (k ? .15 : -.15); const st = new THREE.Mesh(new THREE.CylinderGeometry(.02, .02, .35, 6), m); st.position.set(x, headY + .45, 0); body.add(st); S(.07, x, headY + .65, 0, toy('#ffd23f', { em: '#ffd23f', ei: .6 })); }
+    if (A.shape === 'cube') body.children.forEach(o => { o.position.y -= .45; }); // (the cube's middle is the body's pivot, for rolling)
+    body.position.y = A.shape === 'cube' ? .45 : 0;
     return a;
   }
   function rocketModel(rk) {
