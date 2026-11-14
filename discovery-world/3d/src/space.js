@@ -60,7 +60,7 @@ export function initSpace(G, api) {
       for (let k = 0; k < 22; k++) { const puff = ball(X + 3 + k * 5, .1, -4 - (k % 4) * 3, 1 + (k % 3) * .5, BANDS[(k + 1) % 4], { r: .9 }); puff.scale.y = .35; U.push((dt, t) => { puff.position.x += Math.sin(t * .3 + k) * dt * .3; }); }
     }
     // the parked rocket (tap it to fly somewhere else, or home) and the striped metre pole
-    const rk = new THREE.Group(); rk.position.set(X + 8, 0, -2.4); add(rk); rocketModel(rk); rk.traverse(o => { if (o.isMesh) o.userData.tap = () => api.openPicker(); }); G.taps.push(rk);
+    const rk = new THREE.Group(); rk.position.set(X + 8, 0, -2.4); add(rk); const rwin = rocketModel(rk); api.registerRocket && api.registerRocket(id, rk, rwin, X + 8, 'space', 0); rk.traverse(o => { if (o.isMesh) o.userData.tap = () => api.openPicker(); }); G.taps.push(rk);
     G.interact.push({ x: X + 8, y: 0, layer: 'space', disc: 'space_' + id, run: () => api.openPicker(), hintY: 4.6 });
     for (let m = 0; m < 30; m++) box(X + 20, m, -1.6, .25, 1, .25, m % 2 ? '#ffffff' : '#ff4f9a', { r: .5 });
     // ---------- the ALIENS: a different kind on every planet; tap one and it says hello in its own voice ----------
@@ -71,7 +71,7 @@ export function initSpace(G, api) {
       mars: { name: 'Marslings', body: '#5fd36a', eye: 3, ant: 2, shape: 'classic', move: 'walk', note: 640, hi: 'Greetings, Earthling! Welcome to the red planet!' },
       jupiter: { name: 'Bloonies', body: '#ff9a5c', eye: 2, ant: 1, shape: 'balloon', move: 'float', note: 300, hi: 'Boom boom! We are big balloons from the biggest planet!' },
       saturn: { name: 'Ringlets', body: '#c9a6ff', eye: 2, ant: 0, shape: 'ringed', move: 'spin', note: 760, hi: 'Wheee! We spin like Saturn\'s rings!' },
-      uranus: { name: 'Rollers', body: '#4fd8d0', eye: 2, ant: 1, shape: 'cube', move: 'roll', note: 580, hi: 'Roll roll! On Uranus everything rolls on its side!' },
+      uranus: { name: 'Rollers', body: '#4fd8d0', eye: 2, ant: 0, shape: 'cube', move: 'roll', note: 580, hi: 'Roll roll! On Uranus everything rolls on its side!' },
       neptune: { name: 'Windies', body: '#5a82f0', eye: 2, ant: 0, shape: 'wisp', move: 'swoosh', note: 450, hi: 'Whoosh! The wind is so fast on Neptune!' },
       pluto: { name: 'Heartlings', body: '#ff9fd2', eye: 2, ant: 2, shape: 'heart', move: 'hop', note: 1000, hi: 'Hello, friend! We love our big icy heart!' },
     }[id];
@@ -82,7 +82,7 @@ export function initSpace(G, api) {
         if (AL.move === 'float') a.position.y = 1 + Math.sin(ph) * .4;
         if (AL.move === 'walk' || AL.move === 'scurry') { a.position.x = x0 + Math.sin(ph * (AL.move === 'scurry' ? 1.6 : .5)) * 2.5; b.position.y = Math.abs(Math.sin(ph * 6)) * .08; }
         if (AL.move === 'spin') a.rotation.y += dt * 3;
-        if (AL.move === 'roll') { a.position.x = x0 + Math.sin(ph * .6) * 3; b.rotation.z = -a.position.x * 1.2; }
+        if (AL.move === 'roll') { a.position.x = x0 + Math.sin(ph * .6) * 3; const r = -(a.position.x - x0) * 1.96; b.rotation.z = r; b.position.y = .4 * (Math.abs(Math.cos(r)) + Math.abs(Math.sin(r))) + .05; } // (build 48: it turns about its own middle and rises onto its corner, like a real box rolling; it used to swing half into the ground)
         if (AL.move === 'swoosh') { a.position.x = x0 + Math.sin(ph * .9) * 4; a.position.y = .8 + Math.sin(ph * 2) * .3; }
         a.scale.setScalar(1 + Math.sin(boing * 12) * boing * .25); }); }
     // ---------- things to do that fit each planet ----------
@@ -177,14 +177,17 @@ export function initSpace(G, api) {
     for (const x of ex) { S(A.eye === 1 ? .2 : .11, x, headY, .42, white); S(A.eye === 1 ? .1 : .055, x, headY, .52, dark); }
     if (A.shades) { const sh = new THREE.Mesh(new THREE.BoxGeometry(.5, .12, .05), dark); sh.position.set(0, headY, .5); body.add(sh); }
     for (let k = 0; k < A.ant; k++) { const x = A.ant === 1 ? 0 : (k ? .15 : -.15); const st = new THREE.Mesh(new THREE.CylinderGeometry(.02, .02, .35, 6), m); st.position.set(x, headY + .45, 0); body.add(st); S(.07, x, headY + .65, 0, toy('#ffd23f', { em: '#ffd23f', ei: .6 })); }
+    if (A.shape === 'cube') body.children.forEach(o => { o.position.y -= .45; }); // (the cube's middle is the body's pivot, for rolling)
+    body.position.y = A.shape === 'cube' ? .45 : 0;
     return a;
   }
   function rocketModel(rk) {
     const body = new THREE.Mesh(new THREE.CylinderGeometry(.9, 1, 4.4, 28), toy('#ffffff', { r: .3 })); body.position.y = 2.6; rk.add(body);
     const nose = new THREE.Mesh(new THREE.ConeGeometry(.9, 1.7, 28), toy('#ff4f9a')); nose.position.y = 5.65; rk.add(nose);
     for (let i = 0; i < 3; i++) { const f = new THREE.Mesh(new THREE.BoxGeometry(.18, 1.4, 1.1), toy('#2fa8ff')); const a = i * 2.09; f.position.set(Math.cos(a) * .95, .9, Math.sin(a) * .95); f.rotation.y = -a; rk.add(f); }
-    const win = new THREE.Mesh(new THREE.SphereGeometry(.36, 16, 10), toy('#9fe6ff', { em: '#9fe6ff', ei: .5 })); win.position.set(0, 3.6, .78); rk.add(win);
+    const win = new THREE.Mesh(new THREE.SphereGeometry(.36, 16, 10), toy('#9fe6ff', { em: '#9fe6ff', ei: .5 })); win.position.set(0, 3.6, .78); rk.add(win); rk.userData.win = win;
     const band = new THREE.Mesh(new THREE.CylinderGeometry(.96, .96, .3, 28), toy('#ffd23f')); band.position.y = 1.6; rk.add(band);
+    return win;
   }
 
   // ---------- flying ----------

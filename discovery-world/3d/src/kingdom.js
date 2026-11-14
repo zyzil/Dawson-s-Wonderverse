@@ -414,11 +414,12 @@ export function initKingdom(G, api) {
     spray = Math.max(0, spray - dt);
     if (Math.random() < dt * (spray > 0 ? 40 : 3)) burst(fx + (Math.random() - .5) * .3, 2 + (spray > 0 ? 1 : 0), fz, spray > 0 ? ['#9fe6ff', '#ffffff', '#fff3a6', '#b28cff'] : ['#9fe6ff', '#ffffff'], spray > 0 ? 3 : 1, spray > 0 ? 3.2 : 1);
     // crown above your head
-    myCrown.visible = !!world.crown;
-    if (world.crown) { myCrown.position.set(P.x, P.y + (G.headTop || 2) + .22 + Math.sin(t * 3) * .05, P.z); myCrown.rotation.y = t * .8; }
+    myCrown.visible = !!world.crown && !G.playerHidden; // (build 48: hidden while you sit inside the rocket)
+    const pb = G.playerBody, by = pb ? pb.position.y : P.y, sy = pb ? pb.scale.y : 1; /* (build 48: on the whale she is drawn smaller, and the crown floated high above her) */
+    if (world.crown) { myCrown.position.set(pb ? pb.position.x : P.x, by + (G.headTop || 2) * sy + .22 + Math.sin(t * 3) * .05, pb ? pb.position.z : P.z); myCrown.rotation.y = t * .8; }
     // the wand floats at your side and sprinkles a little sparkle as you go
-    myWand.visible = !!world.wand;
-    if (world.wand) { const f = P.facing || 1; myWand.position.set(P.x - f * .7, P.y + 1 + Math.sin(t * 2.4) * .08, P.z + .35); myWand.rotation.z = f * .35 + Math.sin(t * 1.7) * .1; myWand.userData.star.rotation.y = t * 2;
+    myWand.visible = !!world.wand && !G.playerHidden;
+    if (world.wand) { const f = P.facing || 1; myWand.position.set((pb ? pb.position.x : P.x) - f * .7 * sy, by + sy + Math.sin(t * 2.4) * .08, (pb ? pb.position.z : P.z) + .35); myWand.rotation.z = f * .35 + Math.sin(t * 1.7) * .1; myWand.userData.star.rotation.y = t * 2;
       if (Math.abs(P.vx) > 1 && Math.random() < dt * 6) burst(myWand.position.x, myWand.position.y + .8, myWand.position.z, ['#fff3a6', '#b28cff', '#9fe6ff'], 1, .6); }
     // dance floor: the tile under you glows and plays a note; the princesses dance
     let on = -1;

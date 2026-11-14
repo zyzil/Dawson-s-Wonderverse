@@ -4,6 +4,24 @@ Rule: the game must never get slower. Measure before and after every change on i
 **Desktop numbers come from a software-rendered browser and are NOT iPhone numbers.** Only the in-game report from the
 real iPhone (⚙️ → Performance Test → Copy Test Results) counts as an iPhone measurement.
 
+## Build 48 — rocket ride (desktop, software rendering; `ba.cjs 3D_build47_index.html index.html`, then `calls.cjs`)
+| View | Script ms/frame 47 → 48 | Long tasks | Notes |
+|---|---|---|---|
+| Park | 13.5 → 13.7 | 0 → 0 | |
+| Creature area | 12.4 → 13.1 | 0 → 0 | |
+| Castle | 17.9 → 12.1 | 0 → 0 | |
+| Walk into new areas | – | 1 → 1 (55 → 79 ms) | the known x ≈ 462 task (on the task list since build 33) |
+
+- **Other measurements:**
+  - house in and out: 0 long tasks; map jump: 0;
+  - memory 132 → 133 MB; geometries 1498 → 1500; textures 162 → 161; **shader programs 103 → 103**;
+  - loading 30.7 → 26.1 s (machine noise, not a real improvement).
+- **Park draw calls:** `ba.cjs`'s one-frame count read 195 → 294, but the park did not change. `calls.cjs`, averaged over 6 real frames, gives **237 → 244** (creatures walking in and out of view). Lab Gardens: 73 → 74.
+- **The rocket ride itself** (scripted PAW → in → red button → countdown → lift-off → landing → out, `getProgramParameter` timing):
+  - no slow shader waits;
+  - no new shader programs: the flame uses the shared toy shader, and the window face is a sprite, already warmed;
+  - it adds two small hidden flame cones per rocket, plus the face sprite while you sit inside.
+
 ## Build 41 — native 3D pets, learning and world toys
 
 Paired desktop Chromium / SwiftShader measurements use `tests/perf/nursery.cjs`, fixed seed123456, identical touch viewport844×390 and HQ settings, and16 complete rendered callbacks per view. Both shadow phases are included: an earlier single-frame snapshot can compare a plain frame with a shadow frame and give misleading draw-count differences. No other browser ran concurrently.

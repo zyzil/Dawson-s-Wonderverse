@@ -488,3 +488,11 @@ html.calm #learn .lgone span,html.calm #learn .lconf{visibility:hidden}
 #rocketPanel .rkT.earth{border-color:#7fd99a;box-shadow:0 0 0 5px #7fd99a55}
 #rocketPanel .rkT.here{box-shadow:0 0 0 6px #ffd23f}
 #rocketPanel .mpX{position:absolute;top:-16px;right:-16px;width:52px;height:52px;border-radius:50%;border:4px solid #fff;background:#ff8fc8;color:#fff;font-size:24px;font-weight:900}
+
+/* (build 48) the big red blast-off button: appears once a planet is picked while sitting in the rocket */
+#blastBtn{display:none;position:fixed;z-index:41;left:auto;right:calc(max(12px,env(safe-area-inset-right)) + 20vw);top:50%;transform:translateY(-58%);width:min(30vw,34vh,170px);height:min(30vw,34vh,170px);border-radius:50%;border:7px solid #fff;background:radial-gradient(circle at 38% 30%,#ff8a8a,#ff2a2a 45%,#b30000);box-shadow:0 10px 0 #7a0000,0 16px 30px #0008,0 0 0 10px #ffd23f88;padding:0;touch-action:none}
+#blastBtn.show{display:block;animation:blastPulse .9s ease-in-out infinite}
+#blastBtn:active{box-shadow:0 3px 0 #7a0000,0 8px 18px #0008;transform:translateY(-58%) translateY(6px)}
+#blastBtn i{position:absolute;inset:18%;border-radius:50%;background:radial-gradient(circle at 40% 30%,#ffffff88,transparent 60%)}
+#blastBtn b{position:absolute;right:-8%;top:-8%;width:36%;height:36%;border-radius:50%;border:4px solid #fff;box-shadow:0 4px 10px #0006}
+@keyframes blastPulse{50%{transform:translateY(-58%) scale(1.07)}}

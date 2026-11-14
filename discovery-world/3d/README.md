@@ -20,6 +20,17 @@ Tap **🥚** to open Little Wonders, a furnished 3D pet playroom using the same 
 
 Desktop software-rendering verification is recorded in DEVELOPMENT_LOG.md and PERFORMANCE_LOG.md. Real iPhone playtesting remains necessary.
 
+## 3D build 48: climb into the rocket and press the big red button
+
+- **PAW at the rocket now gets you in.** It used to blow bubbles, because the rocket stood exactly on the bubble fountain. The rocket has moved a few steps over, next to the fountain.
+- **A real rocket ride:**
+  - You walk up and climb in; your face shows in the round window.
+  - Pick a planet, and a big pulsing red button appears.
+  - Press it: a 3-2-1 countdown with rumbling and smoke, then a flame, and the rocket lifts off the pad. The camera rides up with it.
+  - At the planet (or back home on Earth) the rocket comes down onto its pad with its flame, and you climb out.
+- JUMP or ✖ climbs out before take-off.
+- **Also fixed:** the Uranus aliens roll on top of the ground instead of half inside it; the barn, chicken-coop and pink stand roofs are straight; the crown and wand stay on her head while riding the whale.
+
 ## 3D builds 46–47: aliens and planet activities, the whale stays, a straight roof
 
 - **Every planet is its own world:** land on all of them, even the gas giants (on their swirly clouds), each with its own colours, a different kind of alien to meet, and things to do that fit the planet. For example: drive the rover on Mars, make lightning on Jupiter, slide on Pluto's icy heart.

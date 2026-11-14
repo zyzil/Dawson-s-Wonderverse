@@ -1,8 +1,8 @@
 {
-  "date": "2026-11-14T16:45:37.864Z",
+  "date": "2026-11-14T18:53:49.767Z",
   "environment": "Playwright Chromium headless, SwiftShader software WebGL, 844x390 touch viewport — NOT a physical iPhone",
-  "passed": 180,
-  "total": 180,
+  "passed": 184,
+  "total": 184,
   "results": [
     {
       "name": "3D title screen shows the three creatures and a play button",
@@ -27,7 +27,7 @@
     {
       "name": "slide a finger right to walk right",
       "ok": true,
-      "detail": "x 1.2 → 5.6"
+      "detail": "x 1.2 → 6.8"
     },
     {
       "name": "let go and the creature stops",
@@ -42,7 +42,7 @@
     {
       "name": "JUMP jumps",
       "ok": true,
-      "detail": "y=1.55"
+      "detail": "y=1.49"
     },
     {
       "name": "double jump (tap JUMP again in the air)",
@@ -57,12 +57,12 @@
     {
       "name": "multi-touch: walk and jump at the same time",
       "ok": true,
-      "detail": "x -0.2→5.4, y 1.55"
+      "detail": "x 1.7→5.8, y 1.55"
     },
     {
       "name": "tap ▲ to jump",
       "ok": true,
-      "detail": "rose to y=1.76"
+      "detail": "rose to y=1.68"
     },
     {
       "name": "holding ▶ walks at a normal speed (never too fast)",
@@ -87,12 +87,12 @@
     {
       "name": "Jelly squishes flat when it lands",
       "ok": true,
-      "detail": "body squashed to 70% height"
+      "detail": "body squashed to 63% height"
     },
     {
       "name": "tap your creature to tickle it",
       "ok": true,
-      "detail": "tap at 310,220 lands on: game [[\"SkinnedMesh\",\"8.98\",\"creature\",\"0.0\",\"creature\",\"Group@7.4\"]] P=7.35,0.00,0.00"
+      "detail": "tap at 310,220 lands on: game [[\"SkinnedMesh\",\"8.98\",\"creature\",\"0.0\",\"creature\",\"Group@9.3\"],[\"Mesh\",\"9.96\",\"tap\",\"0.0\",\"tap\",\"Mesh@0.0\"],[\"Mesh\",\"10.05\",\"tap\",\"0.0\",\"tap\",\"Mesh@0.0\"]] P=9.31,0.00,0.00"
     },
     {
       "name": "tap the ball pit: splash",
@@ -112,12 +112,12 @@
     {
       "name": "walk onto the trampoline: big bounce",
       "ok": true,
-      "detail": "highest y=2.63"
+      "detail": "highest y=2.90"
     },
     {
       "name": "walk into the climbing blocks: you hop up onto them (not through them)",
       "ok": true,
-      "detail": "x=40.5 y=3.82"
+      "detail": "x=41.1 y=3.60"
     },
     {
       "name": "walk back left past the slide tower: nothing blocks the way",
@@ -127,7 +127,7 @@
     {
       "name": "walk into the ball pit: hop over its edge into the balls",
       "ok": true,
-      "detail": "x=10.4"
+      "detail": "x=14.1"
     },
     {
       "name": "a picture bubble by the deep part of the ball pit",
@@ -142,7 +142,7 @@
     {
       "name": "tap JUMP to swim up through the balls",
       "ok": true,
-      "detail": "y -6.00 → -4.45"
+      "detail": "y -5.17 → -3.62"
     },
     {
       "name": "sink all the way down into the secret underground",
@@ -157,12 +157,12 @@
     {
       "name": "the bounce mushroom pops you back up into the ball shaft",
       "ok": true,
-      "detail": "y=-1.62"
+      "detail": "y=-1.51"
     },
     {
       "name": "swim up and climb out of the ball pit",
       "ok": true,
-      "detail": "x=8.8 y=0.00"
+      "detail": "x=10.1 y=0.00"
     },
     {
       "name": "walk past the singing crystals and they play",
@@ -177,7 +177,7 @@
     {
       "name": "crawl all the way through the tunnel",
       "ok": true,
-      "detail": "x=37.9"
+      "detail": "x=37.6"
     },
     {
       "name": "find the lost Fluffkin in the underground gem room",
@@ -322,7 +322,7 @@
     {
       "name": "tap the unicorn: it talks in a picture speech bubble",
       "ok": true,
-      "detail": "1 bubbles"
+      "detail": "2 bubbles"
     },
     {
       "name": "the hedgehog plays a song",
@@ -352,7 +352,7 @@
     {
       "name": "the kart drives round the track",
       "ok": true,
-      "detail": "u 0.051 → 1.051, z=-3.4"
+      "detail": "u 0.049 → 1.010, z=-3.3"
     },
     {
       "name": "JUMP makes the kart hop",
@@ -447,7 +447,7 @@
     {
       "name": "tap Biscuit the puppy: he follows you everywhere",
       "ok": true,
-      "detail": "followers 2 → 3; in front of him: buddy_biscuit "
+      "detail": "followers 2 → 3; in front of him: Mesh@0.0 Mesh@0.0 Mesh@0.0 buddy_biscuit "
     },
     {
       "name": "tap Twinkle the fairy: she flies along with you",
@@ -537,7 +537,7 @@
     {
       "name": "spring pad bounces you up high",
       "ok": true,
-      "detail": "y=3.61"
+      "detail": "y=4.58"
     },
     {
       "name": "tap the carousel to ride",
@@ -557,12 +557,12 @@
     {
       "name": "the Ferris wheel lifts you up",
       "ok": true,
-      "detail": "y=1.96"
+      "detail": "y=1.59"
     },
     {
       "name": "walk through star bits to collect them",
       "ok": true,
-      "detail": "46 → 50"
+      "detail": "44 → 48"
     },
     {
       "name": "find a baby Fluffkin: it follows you",
@@ -597,7 +597,7 @@
     {
       "name": "hold ▶ to walk up part-way, let go to stop",
       "ok": true,
-      "detail": "k=0.5897387541168148"
+      "detail": "k=0.49612942806652677"
     },
     {
       "name": "walk off the top onto the upstairs floor",
@@ -667,7 +667,7 @@
     {
       "name": "reload keeps creature, star bits, Fluffkins and painting",
       "ok": true,
-      "detail": "{\"cr\":\"jelly\",\"bits\":50,\"fl\":3,\"p\":true}"
+      "detail": "{\"cr\":\"jelly\",\"bits\":48,\"fl\":3,\"p\":true}"
     },
     {
       "name": "🗺️ opens the picture map",
@@ -787,7 +787,7 @@
     {
       "name": "the seesaw rocks you up and down",
       "ok": true,
-      "detail": "highest y=1.88"
+      "detail": "highest y=1.90"
     },
     {
       "name": "the rainbow stairs at the end of the world lead up into the Sky Kingdom",
@@ -802,12 +802,12 @@
     {
       "name": "steer the sky whale: it flies where you point (and stays visible: never in a scenery section)",
       "ok": true,
-      "detail": "x 54.5 → 64.1, y 15.0, whale in the scene: true"
+      "detail": "x 54.5 → 64.5, y 16.8, whale in the scene: true"
     },
     {
       "name": "JUMP hops off the flying whale and you float gently down",
       "ok": true,
-      "detail": "[null,-3.4000000000000017]"
+      "detail": "[null,-2.600000000000002]"
     },
     {
       "name": "tap the Splash Pool: you dive into the deep pool and swim",
@@ -817,7 +817,7 @@
     {
       "name": "swim down and through the tunnel at the bottom into the underwater world",
       "ok": true,
-      "detail": "x=3012.6"
+      "detail": "x=3012.1"
     },
     {
       "name": "the sea creatures answer when tapped (coral, fish, turtle, octopus, jellyfish, treasure, clam, dolphins, sea floor)",
@@ -830,9 +830,29 @@
       "detail": "layer= x=-8.0"
     },
     {
+      "name": "PAW at the rocket: she climbs inside it (not bubbles) and the planet pictures come up",
+      "ok": true,
+      "detail": "target=rocketmenu ride=rocket:in hidden=true"
+    },
+    {
       "name": "the rocket shows a picture for Earth, the Moon, every planet and Pluto",
       "ok": true,
       "detail": "10 pictures"
+    },
+    {
+      "name": "picking the Moon shows the big red button (no flying yet)",
+      "ok": true,
+      "detail": "{\"btn\":true,\"layer\":\"\",\"ride\":\"in\"}"
+    },
+    {
+      "name": "the red button: countdown, then the rocket lifts off the pad with her inside",
+      "ok": true,
+      "detail": "phases in,count,lift,land, rose 26.0 m"
+    },
+    {
+      "name": "on the Moon the rocket lands on its pad and she climbs out",
+      "ok": true,
+      "detail": "{\"ride\":null,\"hidden\":false,\"x\":2.5}"
     },
     {
       "name": "fly to the Moon: real Moon gravity (1.62 / 9.81 of Earth's)",
@@ -845,7 +865,7 @@
       "detail": "jumped to 12.0 m (Earth ≈ 1.8 m)"
     },
     {
-      "name": "on Jupiter (a floating platform in its clouds) the strong gravity allows only tiny hops",
+      "name": "on Jupiter the strong gravity allows only tiny hops",
       "ok": true,
       "detail": "jumped to 0.71 m"
     },
@@ -862,7 +882,7 @@
     {
       "name": "fly home to Earth: back at the launch pad",
       "ok": true,
-      "detail": "layer= x=700.5"
+      "detail": "layer= x=688.5"
     },
     {
       "name": "the ⚙️ panel has a voice chooser",

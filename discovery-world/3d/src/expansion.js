@@ -211,7 +211,7 @@ export function initExpansion(G, api) {
   for (const k of Object.keys(PALS)) if (X.pals[k] && X.pals[k].follow) setFollow(k, true);
   function updateFollowers(dt, t) {
     let slot = 0; for (const k of Object.keys(followers)) { const f = followers[k], m = f.m; slot++;
-      const tx = P.layer === '' ? P.x - (P.facing || 1) * (1.6 + slot * 1.3) : m.position.x, ty = P.layer === '' ? Math.max(0, P.y - .1) : m.position.y;
+      const tx = P.layer === '' && !G.playerHidden ? P.x - (P.facing || 1) * (1.6 + slot * 1.3) : m.position.x, ty = P.layer === '' && !G.playerHidden ? Math.max(0, P.y - .1) : m.position.y; /* (build 48: pets wait on the ground while you fly off in the rocket) */
       if (Math.abs(tx - m.position.x) > 25) m.position.x = tx; // (after a jump somewhere else, it arrives with you)
       const dx = tx - m.position.x; m.position.x += dx * Math.min(1, dt * 3); m.position.y += (ty - m.position.y) * Math.min(1, dt * 6); m.position.z += (1.5 + slot * .45 - m.position.z) * Math.min(1, dt * 3);
       const moving = Math.abs(dx) > .3; m.userData.body.position.y = moving ? Math.abs(Math.sin(t * 12 + slot)) * .12 : 0;
@@ -342,12 +342,13 @@ export function initExpansion(G, api) {
       c.tap(lamp, () => { k = (k + 1) % animals.length; sh.material = emojiMat(animals[k][0], true); sh.visible = true; c.say(`🔦 A ${animals[k][1]} shadow!`); Sound.twinkle(); c.disc('shadow', '🔦 Tap the lamp to make shadow animals!'); }, 709);
       return (dt, t) => { if (sh.visible) sh.position.x = 712.4 + Math.sin(t * 1.5) * .3; }; },
     // (build 45) THE SPACE ROCKET on its launch pad: tap it (or PAW) and pick a planet to fly to
-    () => { const X = 698, pad = c.cyl(X, 0, -3.2, 2.2, 2.4, .35, '#9a9aa6', { r: .6, m: .3 }); const rk = new THREE.Group(); rk.position.set(X, .35, -3.2); c.add(rk);
+    () => { const X = 686, /* (build 48: it stood on top of the bubble fountain at 698, so PAW there blew bubbles instead) */ pad = c.cyl(X, 0, -3.2, 2.2, 2.4, .35, '#9a9aa6', { r: .6, m: .3 }); const rk = new THREE.Group(); rk.position.set(X, .35, -3.2); c.add(rk);
       const body = new THREE.Mesh(new THREE.CylinderGeometry(.9, 1, 4.4, 28), mat('#ffffff', { r: .3 })); body.position.y = 2.6; body.castShadow = true; rk.add(body); const nose = new THREE.Mesh(new THREE.ConeGeometry(.9, 1.7, 28), mat('#ff4f9a')); nose.position.y = 5.65; rk.add(nose);
       for (let i = 0; i < 3; i++) { const f = new THREE.Mesh(W.rbox(.18, 1.4, 1.1, .05), mat('#2fa8ff')); const a2 = i * 2.09 + .5; f.position.set(Math.cos(a2) * .95, .9, Math.sin(a2) * .95); f.rotation.y = -a2; rk.add(f); }
       const win = new THREE.Mesh(new THREE.SphereGeometry(.36, 16, 10), mat('#9fe6ff', { em: '#9fe6ff', ei: .5 })); win.position.set(0, 3.6, .8); rk.add(win); const band = new THREE.Mesh(new THREE.CylinderGeometry(.96, .96, .3, 28), mat('#ffd23f')); band.position.y = 1.6; rk.add(band);
       for (const s2 of [-1, 1]) c.cyl(X + s2 * 2.6, 0, -3.2, .12, .12, 4, '#ff9a2e');
-      c.tap(rk, () => api.rocket && api.rocket(), X, { icon: '🚀', label: 'Space rocket', action: 'Fly to space', disc: 'rocketmenu' }); c.tap(pad, () => api.rocket && api.rocket());
+      api.registerRocket && api.registerRocket('earth', rk, win, X, '', .35);
+      c.tap(rk, () => api.rocket && api.rocket(), X, { icon: '🚀', label: 'Space rocket', action: 'Get in the rocket', disc: 'rocketmenu' }); c.tap(pad, () => api.rocket && api.rocket());
       return (dt, t) => { win.material.emissiveIntensity = .4 + Math.sin(t * 3) * .2; }; },
     // the rocket: press the big button
     () => { const rk = new THREE.Group(); rk.position.set(730, 0, -2.6); c.add(rk); const body = new THREE.Mesh(new THREE.CylinderGeometry(.5, .6, 2.6, 24), mat('#ffffff', { r: .3 })); body.position.y = 1.7; body.castShadow = true; rk.add(body); const nose = new THREE.Mesh(new THREE.ConeGeometry(.5, 1, 24), mat('#ff4f9a')); nose.position.y = 3.5; rk.add(nose); for (let i = 0; i < 3; i++) { const f = new THREE.Mesh(W.rbox(.12, .8, .7, .04), mat('#2fa8ff')); const a = i * 2.09; f.position.set(Math.cos(a) * .55, .6, Math.sin(a) * .55); f.rotation.y = -a; rk.add(f); } const win = new THREE.Mesh(new THREE.SphereGeometry(.22, 16, 10), mat('#9fe6ff', { em: '#9fe6ff', ei: .5 })); win.position.set(0, 2.2, .45); rk.add(win);
@@ -435,7 +436,7 @@ export function initExpansion(G, api) {
   // =================== 🏖️ SUNNY SEASIDE (x -150 to -20) ===================
   builders.seaside = c => [
     // the ice cream stand: tap the tubs to stack scoops, tap the cone to eat it
-    () => { c.block(-35, 0, -3.4, 3.4, 1.1, 1.2, '#ffffff', { r: .2 }); const roof = new THREE.Mesh(new THREE.ConeGeometry(2.6, 1.2, 4), mat('#ff7ac8')); roof.position.set(-35, 3.2, -3.4); roof.rotation.y = Math.PI / 4; roof.scale.z = .6; c.add(roof); for (const x of [-36.6, -33.4]) c.cyl(x, 0, -3.4, .07, .07, 2.6, '#ffffff');
+    () => { c.block(-35, 0, -3.4, 3.4, 1.1, 1.2, '#ffffff', { r: .2 }); const roof = new THREE.Mesh(new THREE.ConeGeometry(2.6, 1.2, 4).rotateY(Math.PI / 4), mat('#ff7ac8')); roof.position.set(-35, 3.2, -3.4); roof.scale.z = .6; /* (build 48: turned in its shape, then squashed: straight, not crooked) */ c.add(roof); for (const x of [-36.6, -33.4]) c.cyl(x, 0, -3.4, .07, .07, 2.6, '#ffffff');
       const flav = [['strawberry', '#ff8fb8'], ['vanilla', '#fff3d6'], ['mint', '#9ff0c8'], ['chocolate', '#8a5a3a']]; const cone = new THREE.Mesh(new THREE.ConeGeometry(.28, .8, 16), mat('#e8b06a', { r: .7 })); cone.rotation.x = Math.PI; cone.position.set(-35, 1.6, -2.5); c.add(cone); const scoops = [];
       flav.forEach(([n, col], i) => { const tub = c.cyl(-36.3 + i * .85, 1.1, -3.1, .3, .3, .3, col, { r: .6 }); c.tap(tub, () => { if (scoops.length >= 4) { c.say('🍦 That is a very tall ice cream! Tap the cone to eat it!'); return; } const sc = new THREE.Mesh(new THREE.SphereGeometry(.3, 16, 12), mat(col, { r: .7 })); sc.position.set(-35, 2.1 + scoops.length * .42, -2.5); c.add(sc); scoops.push(sc); c.say(`🍦 ${n}!`); Sound.pop ? Sound.pop() : Sound.click(); c.disc('icecream', '🍦 The ice cream stand! Tap the tubs to stack scoops.'); }); });
       c.tap(cone, () => { if (!scoops.length) { c.say('🍦 Tap a tub to add a scoop!'); return; } for (const sc of scoops) c.remove(sc); c.say(`😋 Yum! ${scoops.length} scoops! Delicious!`); Sound.giggle(); c.burst(-35, 2.4, -2.5, ['#ff8fb8', '#fff', '#9ff0c8'], 16, 2.5); scoops.length = 0; }, -35); },
@@ -572,14 +573,14 @@ export function initExpansion(G, api) {
   const NUM = ['zero', 'one', 'two', 'three', 'four', 'five', 'six'];
   builders.farm = c => [
     // the red barn: tap the doors and an animal comes out to say hello (a different one each time)
-    () => { c.block(-420, 0, -5.6, 7, 4.2, 4, '#d8443c', { r: .15 }); const roof = new THREE.Mesh(new THREE.ConeGeometry(5, 2.2, 4), mat('#8a2a24', { r: .8 })); roof.rotation.y = Math.PI / 4; roof.scale.z = .62; roof.position.set(-420, 5.3, -5.6); c.add(roof);
+    () => { c.block(-420, 0, -5.6, 7, 4.2, 4, '#d8443c', { r: .15 }); const roof = new THREE.Mesh(new THREE.ConeGeometry(5, 2.2, 4).rotateY(Math.PI / 4), mat('#8a2a24', { r: .8 })); roof.scale.z = .62; /* (build 48: the barn roof was crooked, like the house's was) */ roof.position.set(-420, 5.3, -5.6); c.add(roof);
       c.block(-420, 4.2, -3.55, 7.2, .25, .2, '#ffffff', { r: .05 }); const doors = [-1, 1].map(s2 => { const d = c.block(-420 + s2 * .8, 0, -3.5, 1.6, 2.8, .16, '#b8322c', { r: .08 }); c.block(-420 + s2 * .8, 1.4, -3.4, 1.4, .14, .06, '#ffffff', { r: .02 }); return d; });
       const who = c.toy('🐴', 1.4, -420, 1.1, -3.1); who.visible = false; const ANI = [['🐴', 'a horse', 'Neigh!', 520], ['🐄', 'a cow', 'Moo!', 140], ['🐐', 'a goat', 'Maa!', 600], ['🐑', 'a sheep', 'Baa!', 480], ['🐓', 'a rooster', 'Cock-a-doodle-doo!', 900]]; let k = -1, show = 0;
       const open = () => { k = (k + 1) % ANI.length; setToySymbol(who, ANI[k][0]); who.visible = true; show = 3; Sound.tone(ANI[k][3], .25, 'sawtooth', .025, .7); Sound.tone(ANI[k][3] * .8, .3, 'sawtooth', .02, .7, .25); c.say(`${ANI[k][0]} ${ANI[k][2]} It's ${ANI[k][1]}!`); c.disc('barn', '🏚️ Tap the barn doors: who lives inside?'); };
       for (const d of doors) c.tap(d, open); c.tap(who, open); c.tap(c.sign('🚪', .7, -420, 3.3, -3.3), open, -420);
       return dt => { if (show > 0) { show -= dt; const o = Math.min(1, (3 - show) * 3, show * 3); doors[0].position.x = -420.8 - o * 1.4; doors[1].position.x = -419.2 + o * 1.4; who.position.z = -3.1 + o * 1.4; if (show <= 0) who.visible = false; } }; },
     // the hen house: tap the hen and she lays an egg in the basket; count to five and the chicks hatch
-    () => { c.block(-432, 0, -4.4, 2.6, 1.8, 2, '#f2c27a', { r: .1 }); const rf = new THREE.Mesh(new THREE.ConeGeometry(2, 1, 4), mat('#d8443c')); rf.rotation.y = Math.PI / 4; rf.scale.z = .7; rf.position.set(-432, 2.3, -4.4); c.add(rf);
+    () => { c.block(-432, 0, -4.4, 2.6, 1.8, 2, '#f2c27a', { r: .1 }); const rf = new THREE.Mesh(new THREE.ConeGeometry(2, 1, 4).rotateY(Math.PI / 4), mat('#d8443c')); rf.scale.z = .7; /* (build 48: straight coop roof) */ rf.position.set(-432, 2.3, -4.4); c.add(rf);
       const hen = c.toy('🐔', 1.1, -431, .7, -2.6); c.cyl(-433.4, 0, -2.4, .55, .45, .45, '#c8925a', { r: .8 }); const eggs = []; const chicks = []; let hatch = 0;
       c.tap(hen, () => { if (hatch) return; const n = eggs.length; const e = c.sph(-433.6 + (n % 3) * .22, .55 + Math.floor(n / 3) * .14, -2.4 + (n % 2) * .1, .11, '#fff6e6', { m: { r: .6 } }); e.scale.y = 1.25; eggs.push(e); Sound.pop ? Sound.pop() : Sound.click(); hen.position.y = 1;
         c.say(`🥚 ${NUM[eggs.length]}!`); c.disc('eggs', '🐔 Tap the hen! Count her eggs.'); if (eggs.length === 5) { hatch = .001; c.say('🥚 Five eggs! Crack crack... the chicks are hatching!'); } }, -431);
