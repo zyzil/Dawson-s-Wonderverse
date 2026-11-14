@@ -4,6 +4,29 @@ Completed changes and how each was tested, newest first. Each checkpoint says wh
 browser vs. a real iPhone). The routine and rules are in `CLAUDE.md`; unfinished work is in `NEXT_TASKS.md`; measurements
 are in `PERFORMANCE_LOG.md`.
 
+## Checkpoint: build 47 — every planet its own place, with aliens; builds 46 fixes
+- **The family asked** to land on the gas giants too, with fitting activities and different aliens.
+  - The gas giants now have walkable swirly cloud ground in their own colours. The voice says, kindly, that each is really made of gas; gravity is still the real 1-bar value.
+  - Every place has its own sky colour.
+- **Aliens**, one kind per planet: Moonbeams (one-eyed hoppers), Sizzlers (spiky, sunglasses), Floaties (jellyfish), Marslings (three-eyed), Bloonies (balloons), Ringlets (spinning, ringed), Rollers (cubes rolling sideways), Windies (wisps), Heartlings (hearts). Tap one and it greets you with its own sound.
+- **Activities that fit each planet:**
+  - Moon: flag, five moon rocks to count, Earth.
+  - Mercury: the sizzling Sun, a day/night button.
+  - Venus: erupting volcanoes, a thermometer.
+  - Mars: the driving rover, a dust devil, Olympus Mons.
+  - Jupiter: the Great Red Spot, lightning, counting its four big moons.
+  - Saturn: ring-ice stepping stones, the hexagon storm, the rings.
+  - Uranus: a ball rolling on its side, diamond rain.
+  - Neptune: a windsock and gusts that push you, Triton's geyser.
+  - Pluto: the slippery icy heart, Charon.
+- **Build 46:**
+  - **The flying whale vanished:** it had been filed into a scenery section, which is hidden far from the camera. It is now marked as moving. Reproduced on build 45 after flying 160 m; fixed.
+  - **The house roof was crooked from above:** the scale was applied before the 45° turn. The turn is now baked into the shape.
+- **Verified (desktop):**
+  - Full smoke test 180/180 (new: every planet has its alien and 2+ activities; the whale stays in the scene while flying).
+  - Device test 11/11; unit tests 25/25; programs 103.
+  - Jupiter's hop is measured by the game every physics step (a slow test frame could miss it).
+
 ## Checkpoint: build 45 — a warmer voice, and a rocket to the planets with real gravity
 - **Voice:**
   - Picks the most natural installed voice: Premium, then Enhanced (on iPhone the quality is in the voice id), then kid-friendly names (Zoe, Ava, Nicky, Samantha…), never "compact".

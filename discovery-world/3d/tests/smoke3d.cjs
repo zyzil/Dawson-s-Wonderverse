@@ -387,7 +387,7 @@ const UG_F = -6;
   { await page.locator('#rocketPanel .rkT.moon').tap(); c = await waitFor(s => s.layer === 'space', 20000); const g = await page.evaluate(() => __DDW3.G.spaceG);
     check('fly to the Moon: real Moon gravity (1.62 / 9.81 of Earth\'s)', c.layer === 'space' && Math.abs(g - 1.62 / 9.81) < .001, `layer=${c.layer} g=${g && g.toFixed(3)}`);
     await sleep(800); const top = await jumpPeak(); check('on the Moon you jump about six times higher', top > 9, `jumped to ${top.toFixed(1)} m (Earth ≈ 1.8 m)`); }
-  { await page.evaluate(() => __DDW3.G.launchTo('jupiter')); await sleep(800); c = await waitFor(s => s.layer === 'space', 20000); await sleep(800); const top = await jumpPeak(); check('on Jupiter (a floating platform in its clouds) the strong gravity allows only tiny hops', top < 1.1 && top > .2, `jumped to ${top.toFixed(2)} m`); }
+  { await page.evaluate(() => __DDW3.G.launchTo('jupiter')); await sleep(800); c = await waitFor(s => s.layer === 'space', 20000); await sleep(800); const top = await jumpPeak(); check('on Jupiter the strong gravity allows only tiny hops', top < 1.1 && top > .2, `jumped to ${top.toFixed(2)} m`); }
   { await page.evaluate(() => __DDW3.G.launchTo('pluto')); await sleep(800); c = await waitFor(s => s.layer === 'space', 20000); const g = await page.evaluate(() => __DDW3.G.spaceG); check('Pluto has the weakest gravity of all (0.62 / 9.81)', Math.abs(g - .62 / 9.81) < .001, `g=${g.toFixed(3)}`); }
   // (build 47) every planet is its own place: its own aliens and activities that fit it (tap them all on each one)
   { const found = [], missing = [];
