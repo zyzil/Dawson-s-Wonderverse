@@ -20,6 +20,12 @@ Tap **🥚** to open Little Wonders, a furnished 3D pet playroom using the same 
 
 Desktop software-rendering verification is recorded in DEVELOPMENT_LOG.md and PERFORMANCE_LOG.md. Real iPhone playtesting remains necessary.
 
+## 3D builds 46–47: aliens and planet activities, the whale stays, a straight roof
+
+- **Every planet is its own world:** land on all of them, even the gas giants (on their swirly clouds), each with its own colours, a different kind of alien to meet, and things to do that fit the planet. For example: drive the rover on Mars, make lightning on Jupiter, slide on Pluto's icy heart.
+- **The sky whale** no longer disappears while you fly it.
+- **The house roof** is straight when seen from the sky.
+
 ## 3D build 45: a friendlier voice, and a rocket to the planets
 
 - **The voice sounds warmer and more natural:**
