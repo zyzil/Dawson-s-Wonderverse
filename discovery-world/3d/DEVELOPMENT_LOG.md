@@ -19,6 +19,13 @@ are in `PERFORMANCE_LOG.md`.
   - Screenshots at frozen moments of the countdown, lift-off, high flight and Moon landing.
   - The button sits beside the rocket and overlaps no control at 844×390 or 1024×768.
 - **Smoke test:** new checks cover PAW entering the rocket (not bubbles), the red button appearing without flying, and the countdown then lift-off; plus landing and climbing out on the Moon. The planet tests now wait for the ride to finish (`flyTo`).
+- **Also from the family's screenshots:**
+  - **Uranus Rollers sank half into the ground.** The cube spun around its bottom edge. It now turns about its own middle and rises onto its corner as it tips (height = 0.4·(|cos θ|+|sin θ|) + 0.05), so it rolls like a real box. The antenna was removed: it would poke into the ground upside down. Measured: the lowest point over 10 s of rolling stays 0.05 m above the ground.
+  - **Crooked farm roofs:** the barn, the chicken coop and the pink stand at x −35 had the same bug as the house roof (turned, then squashed along the wrong axis). They are now turned in the geometry first. Their base corners were checked numerically: true rectangles (barn 7.1 × 4.4 m over a 7 × 4 m barn).
+  - **The crown and wand floated high above her on the whale:** she is drawn smaller on rides. They now follow her drawn body, its position and size (`G.playerBody`).
+- **Test fixes (the game was not at fault):**
+  - The marble-ramp tap check now waits until the camera has stopped moving.
+  - The rocket check reads the phases the game itself ran (`G.rkLog`), because the slow test browser can skip the short test-mode countdown between frames.
 - **Not yet tried on the real iPhone.**
 
 ## Checkpoint: build 47 — every planet its own place, with aliens; builds 46 fixes

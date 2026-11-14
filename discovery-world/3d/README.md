@@ -29,6 +29,7 @@ Desktop software-rendering verification is recorded in DEVELOPMENT_LOG.md and PE
   - Press it: a 3-2-1 countdown with rumbling and smoke, then a flame, and the rocket lifts off the pad. The camera rides up with it.
   - At the planet (or back home on Earth) the rocket comes down onto its pad with its flame, and you climb out.
 - JUMP or ✖ climbs out before take-off.
+- **Also fixed:** the Uranus aliens roll on top of the ground instead of half inside it; the barn, chicken-coop and pink stand roofs are straight; the crown and wand stay on her head while riding the whale.
 
 ## 3D builds 46–47: aliens and planet activities, the whale stays, a straight roof
 
